@@ -39,7 +39,10 @@ function rewriteModuleSpecifiers(source, cocosMockUrl) {
     if (specifier === "cc") {
       return `${prefix}${cocosMockUrl}${suffix}`;
     }
-    if (specifier.startsWith(".") && !path.posix.extname(specifier)) {
+    if (
+      specifier.startsWith(".") &&
+      !/\.(?:mjs|cjs|js|json)$/.test(specifier)
+    ) {
       return `${prefix}${specifier}.mjs${suffix}`;
     }
     return `${prefix}${specifier}${suffix}`;
@@ -51,16 +54,22 @@ function rewriteModuleSpecifiers(source, cocosMockUrl) {
 }
 
 /**
- * 将核心 TypeScript 临时转换为 Node 可加载的 ESM。
+ * 将指定 TypeScript 源文件临时转换为 Node 可加载的 ESM。
  *
  * 输出目录位于系统临时目录，测试结束后由调用方删除，不会污染 Creator 工程。
  */
-export function compileCoreForTest(projectRoot, cocosMockPath) {
-  const sourceRoot = path.join(projectRoot, "assets/app/core");
-  const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), "workai-core-test-"));
+function compileFilesForTest(
+  sourceRoot,
+  sourcePaths,
+  cocosMockPath,
+  temporaryDirectoryPrefix,
+) {
+  const outputRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), temporaryDirectoryPrefix),
+  );
   const cocosMockUrl = pathToFileURL(cocosMockPath).href;
 
-  for (const sourcePath of collectTypeScriptFiles(sourceRoot)) {
+  for (const sourcePath of sourcePaths) {
     const source = fs.readFileSync(sourcePath, "utf8");
     const result = ts.transpileModule(source, {
       fileName: sourcePath,
@@ -107,4 +116,50 @@ export function compileCoreForTest(projectRoot, cocosMockPath) {
       fs.rmSync(outputRoot, { recursive: true, force: true });
     },
   };
+}
+
+/** 将全部核心 TypeScript 临时转换为 Node 可加载的 ESM。 */
+export function compileCoreForTest(projectRoot, cocosMockPath) {
+  const sourceRoot = path.join(projectRoot, "assets/app/core");
+  return compileFilesForTest(
+    sourceRoot,
+    collectTypeScriptFiles(sourceRoot),
+    cocosMockPath,
+    "workai-core-test-",
+  );
+}
+
+/**
+ * 按相对路径转换测试需要的应用 TypeScript 文件。
+ *
+ * 保持 `assets/app` 下的目录结构，确保跨 core、game 模块的相对引用仍指向同一份
+ * 临时模块实例。
+ */
+export function compileAppFilesForTest(
+  projectRoot,
+  cocosMockPath,
+  relativePaths,
+) {
+  const sourceRoot = path.join(projectRoot, "assets/app");
+  const sourcePaths = relativePaths.map((relativePath) => {
+    const sourcePath = path.resolve(sourceRoot, relativePath);
+    const relativeToRoot = path.relative(sourceRoot, sourcePath);
+    if (
+      relativeToRoot.startsWith("..") ||
+      path.isAbsolute(relativeToRoot) ||
+      !sourcePath.endsWith(".ts") ||
+      !fs.existsSync(sourcePath) ||
+      !fs.statSync(sourcePath).isFile()
+    ) {
+      throw new Error(`测试源码路径无效：${relativePath}`);
+    }
+    return sourcePath;
+  });
+
+  return compileFilesForTest(
+    sourceRoot,
+    sourcePaths,
+    cocosMockPath,
+    "workai-app-test-",
+  );
 }

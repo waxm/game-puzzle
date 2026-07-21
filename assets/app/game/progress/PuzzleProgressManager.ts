@@ -92,8 +92,8 @@ export class PuzzleProgressManager {
     this.save(
       this.normalizeProgress({
         version: this.SAVE_VERSION,
-        completedLevels: [...completedLevels],
-        unlockedLevels: [...unlockedLevels],
+        completedLevels: Array.from(completedLevels),
+        unlockedLevels: Array.from(unlockedLevels),
       }),
     );
 
@@ -138,7 +138,7 @@ export class PuzzleProgressManager {
     return {
       version: this.SAVE_VERSION,
       completedLevels: this.sortByCatalog(completedLevels),
-      unlockedLevels: this.sortByCatalog([...unlockedLevels]),
+      unlockedLevels: this.sortByCatalog(Array.from(unlockedLevels)),
     };
   }
 
@@ -150,14 +150,14 @@ export class PuzzleProgressManager {
     if (!Array.isArray(value)) {
       return [];
     }
-    return [
-      ...new Set(
+    return Array.from(
+      new Set(
         value.filter(
           (level): level is number =>
             typeof level === "number" && existingLevels.has(level),
         ),
       ),
-    ];
+    );
   }
 
   /** 按关卡资源目录的实际顺序排序，兼容编号不连续的情况。 */

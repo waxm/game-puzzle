@@ -766,7 +766,7 @@ export class UIGamePanel extends UIBase {
    * 普通交换函数，确保自动操作与玩家拖拽只有一套格子占用状态。
    */
   private connectOneAdjacentPair(): number[] | null {
-    const pieceIds = [...this._pieces.keys()].sort((a, b) => a - b);
+    const pieceIds = Array.from(this._pieces.keys()).sort((a, b) => a - b);
     for (const movingId of pieceIds) {
       for (const targetId of pieceIds) {
         if (
@@ -1057,7 +1057,7 @@ export class UIGamePanel extends UIBase {
     }
     if (
       sourceCells.size !== targetCells.size ||
-      [...sourceCells].some((cellIndex) => !targetCells.has(cellIndex))
+      Array.from(sourceCells).some((cellIndex) => !targetCells.has(cellIndex))
     ) {
       throw new Error("拼图移动计划没有完整覆盖全部腾出格和目标格。");
     }
@@ -1405,7 +1405,7 @@ export class UIGamePanel extends UIBase {
     );
 
     const reportedPieceIds = rebuildResult.largestConnectedGroup
-      ? [...rebuildResult.largestConnectedGroup.pieceIds]
+      ? Array.from(rebuildResult.largestConnectedGroup.pieceIds)
       : [];
     if (emitState) {
       const request: PuzzlePieceDropRequest = {

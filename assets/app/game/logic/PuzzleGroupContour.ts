@@ -104,7 +104,7 @@ export class PuzzleGroupContour {
     columns: number,
   ): PuzzleContourEdge[] {
     const edgeByUndirectedKey = new Map<string, PuzzleContourEdge>();
-    const orderedCellIndices = [...cellIndices].sort(
+    const orderedCellIndices = Array.from(cellIndices).sort(
       (first, second) => first - second,
     );
 
@@ -134,7 +134,7 @@ export class PuzzleGroupContour {
         }
       }
     }
-    return [...edgeByUndirectedKey.values()];
+    return Array.from(edgeByUndirectedKey.values());
   }
 
   /** 从指定边开始追踪一个闭合环，并阻止异常连接形成无限循环。 */

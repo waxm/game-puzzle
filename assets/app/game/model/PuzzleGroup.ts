@@ -73,7 +73,7 @@ export class PuzzleGroupManager {
 
   /** 返回当前全部组合，并按组合编号保持确定顺序。 */
   public get groups(): readonly PuzzleGroup[] {
-    return [...this._groupsById.values()];
+    return Array.from(this._groupsById.values());
   }
 
   /** 返回只读的拼图到组合索引，供移动规划器核对完整组合。 */
@@ -102,7 +102,7 @@ export class PuzzleGroupManager {
     pieceIds: Iterable<number>,
     connections: readonly PuzzleGroupConnection[],
   ): PuzzleGroupRebuildResult {
-    const orderedPieceIds = [...pieceIds].sort(
+    const orderedPieceIds = Array.from(pieceIds).sort(
       (first, second) => first - second,
     );
     this.assertPieceIds(orderedPieceIds);
@@ -178,7 +178,7 @@ export class PuzzleGroupManager {
       nextGroupsById.values(),
     );
     return {
-      groups: [...nextGroupsById.values()],
+      groups: Array.from(nextGroupsById.values()),
       expandedGroups,
       largestConnectedGroup,
     };
