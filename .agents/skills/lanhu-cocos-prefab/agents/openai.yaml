@@ -1,0 +1,4 @@
+interface:
+  display_name: "蓝湖转 Cocos Prefab"
+  short_description: "将蓝湖设计统一转换为 Cocos Creator Prefab"
+  default_prompt: "使用 $lanhu-cocos-prefab 将蓝湖设计转换为当前 Cocos 项目的 Prefab。"
