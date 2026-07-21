@@ -1,0 +1,1 @@
+[1,0,0,[["cc.TextAsset",["_name","text"],1]],[[0,0,1,3]],[[0,"README","# 拼图关卡图片目录\n\n每个关卡使用独立目录，目录和整图统一按三位关卡编号命名：\n\n```text\nlevel_001/level_001_source.png\nlevel_002/level_002_source.png\nlevel_100/level_100_source.png\n```\n\n关卡运行时只加载完整原图的 SpriteFrame 子资源，再根据关卡配置切分网格，不在资源目录中保存运行时散图。\n\n当前素材包含第 1 至 89 关和第 100 关；第 90 至 99 关没有源图，因此不创建空目录。\n"]],0,0,[],[],[]]
