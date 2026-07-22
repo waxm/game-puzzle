@@ -1,5 +1,8 @@
 /** 拼图关卡配置。 */
 export interface PuzzleLevelConfig {
+  /** 单关 JSON 结构版本，用于在格式升级时拒绝误读旧数据。 */
+  schemaVersion: 1;
+
   /** 关卡编号。 */
   level: number;
 
@@ -26,14 +29,14 @@ export interface PuzzleLevelConfig {
 }
 
 /**
- * 导出自动生成的关卡目录。
+ * 导出自动生成的关卡资源目录。
  *
  * 新增或删除关卡图片后运行 tools/generate-puzzle-level-configs.mjs，
- * 不在业务代码中手写重复的资源路径。
+ * 目录只负责说明关卡是否存在以及 JSON 的加载位置，玩法参数由单关 JSON 提供。
  */
 export {
+  getPuzzleLevelConfigPath,
   getNextPuzzleLevelNumber,
-  getPuzzleLevelConfig,
-  PuzzleLevelConfigs,
+  hasPuzzleLevel,
   PuzzleLevelNumbers,
 } from "./PuzzleLevelCatalog.generated";

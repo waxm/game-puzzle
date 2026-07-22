@@ -35,7 +35,10 @@ export class LobbyScene extends SceneBase {
     /** 当前加载失败弹窗请求编号，用于阻止旧弹窗覆盖新的恢复流程。 */
     private _errorPanelRequestId = 0;
 
-    /** 是否正在进入游戏场景，防止连续点击重复切换。 */
+    /** 当前进入游戏请求编号，用于丢弃离场或重试前的旧关卡加载结果。 */
+    private _gameEntryRequestId = 0;
+
+    /** 是否正在准备关卡或进入游戏场景，防止连续点击重复加载。 */
     private _sceneTransitioning = false;
 
     /** 场景进入时准备 UI 配置并打开首页面板。 */
@@ -54,6 +57,8 @@ export class LobbyScene extends SceneBase {
     protected onExit(): void {
         this._homePanelRequestId += 1;
         this._errorPanelRequestId += 1;
+        this._gameEntryRequestId += 1;
+        PuzzleLevelSession.cancelPendingSelection();
         this._sceneTransitioning = false;
         UIManager.close("UIHomePanel", true);
         UIManager.close("UILoadErrorPanel", true);
@@ -73,9 +78,8 @@ export class LobbyScene extends SceneBase {
     /** 根据当前存档生成首页展示参数。 */
     private createHomePanelParams(): UIHomePanelOpenParams {
         const progress = PuzzleProgressManager.getProgress();
-        const levelConfig = PuzzleLevelSession.selectHighestUnlockedLevel();
         return {
-            targetLevel: levelConfig.level,
+            targetLevel: PuzzleProgressManager.getHighestUnlockedLevel(),
             completedCount: progress.completedLevels.length,
             totalCount: PuzzleLevelNumbers.length,
         };
@@ -118,29 +122,49 @@ export class LobbyScene extends SceneBase {
         this.runAsyncTask(this.enterGameScene(request), "进入游戏场景");
     };
 
-    /** 选择关卡并等待 Game 场景真实加载成功，失败时恢复首页交互。 */
+    /** 异步加载并校验关卡 JSON，再等待 Game 场景真实加载成功。 */
     private async enterGameScene(request: GameStartRequest): Promise<void> {
+        const requestId = ++this._gameEntryRequestId;
+        this._sceneTransitioning = true;
+        this.closeLoadErrorPanel();
+        UIManager.get<UIHomePanel>("UIHomePanel")?.setStartInteractable(false);
+
         try {
-            const levelConfig = PuzzleLevelSession.selectLevel(request.level);
+            const levelConfig = await PuzzleLevelSession.selectLevel(request.level);
+            if (
+                !this.node.isValid ||
+                requestId !== this._gameEntryRequestId
+            ) {
+                return;
+            }
             Logger.info(`收到开始第 ${levelConfig.level} 关事件。`);
         } catch (error) {
+            if (
+                !this.node.isValid ||
+                requestId !== this._gameEntryRequestId
+            ) {
+                return;
+            }
+            this._sceneTransitioning = false;
+            UIManager.get<UIHomePanel>("UIHomePanel")?.setStartInteractable(true);
             Logger.error(`无法选择第 ${request.level} 关。`, error);
             await this.openLoadErrorPanel({
                 title: "关卡准备失败",
-                message: "当前关卡数据无法使用，请修正后重新尝试。",
+                message: "当前关卡 JSON 无法加载或校验失败，请重新尝试。",
                 onRetry: () => this.retryEnterGame(request),
                 onBack: this.closeLoadErrorPanel,
             });
             return;
         }
 
-        this._sceneTransitioning = true;
-        UIManager.get<UIHomePanel>("UIHomePanel")?.setStartInteractable(false);
         const result = await SceneManager.load("Game");
         if (result.status === "loaded") {
             return;
         }
-        if (!this.node.isValid) {
+        if (
+            !this.node.isValid ||
+            requestId !== this._gameEntryRequestId
+        ) {
             return;
         }
 

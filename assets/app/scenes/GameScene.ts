@@ -54,6 +54,12 @@ export class GameScene extends SceneBase {
     /** 当前打开加载失败弹窗的请求编号。 */
     private _errorPanelRequestId = 0;
 
+    /** 当前下一关准备请求编号，用于丢弃重试、重玩或离场前的旧 JSON 结果。 */
+    private _nextLevelRequestId = 0;
+
+    /** 是否正在加载并校验下一关 JSON，防止结算按钮连续点击。 */
+    private _nextLevelPreparing = false;
+
     /** 是否正在返回大厅，防止按钮重复发起场景切换。 */
     private _sceneTransitioning = false;
 
@@ -119,6 +125,9 @@ export class GameScene extends SceneBase {
         this._panelRequestId += 1;
         this._resultPanelRequestId += 1;
         this._errorPanelRequestId += 1;
+        this._nextLevelRequestId += 1;
+        this._nextLevelPreparing = false;
+        PuzzleLevelSession.cancelPendingSelection();
         this._controller?.destroy();
         this._controller = null;
         this._levelConfig = levelConfig;
@@ -257,31 +266,71 @@ export class GameScene extends SceneBase {
     private onPuzzleRestart = (): void => {
         this._resultPanelRequestId += 1;
         this._errorPanelRequestId += 1;
+        this._nextLevelRequestId += 1;
+        this._nextLevelPreparing = false;
+        PuzzleLevelSession.cancelPendingSelection();
         UIManager.close("UIResultPanel", true);
         UIManager.close("UILoadErrorPanel", true);
     };
 
-    /** 校验下一关已解锁后，在当前场景内切换关卡。 */
+    /** 请求异步准备下一关；加载期间忽略重复点击。 */
     private onPuzzleNextLevel = (nextLevel?: number): void => {
-        if (!Number.isInteger(nextLevel) || this._sceneTransitioning) {
+        if (
+            !Number.isInteger(nextLevel) ||
+            this._sceneTransitioning ||
+            this._nextLevelPreparing
+        ) {
             return;
         }
+        this.runAsyncTask(
+            this.prepareNextLevel(nextLevel!),
+            "加载并进入下一关",
+        );
+    };
+
+    /** 加载并严格校验下一关 JSON，失败时保留返回大厅和重试入口。 */
+    private async prepareNextLevel(nextLevel: number): Promise<void> {
+        const requestId = ++this._nextLevelRequestId;
+        this._nextLevelPreparing = true;
+        this._errorPanelRequestId += 1;
+        UIManager.close("UILoadErrorPanel", true);
+
         try {
-            const levelConfig = PuzzleLevelSession.selectLevel(nextLevel!);
+            const levelConfig = await PuzzleLevelSession.selectLevel(nextLevel);
+            if (
+                !this.node.isValid ||
+                requestId !== this._nextLevelRequestId
+            ) {
+                return;
+            }
+            this._nextLevelPreparing = false;
             this.startLevel(levelConfig);
         } catch (error) {
+            if (
+                !this.node.isValid ||
+                requestId !== this._nextLevelRequestId
+            ) {
+                return;
+            }
+            this._nextLevelPreparing = false;
             Logger.error(`无法进入下一关：${nextLevel}`, error);
-            this.runAsyncTask(
-                this.openLoadErrorPanel({
-                    title: "下一关准备失败",
-                    message: "下一关数据暂时无法使用，可以重新尝试或返回大厅。",
-                    onRetry: () => this.retryNextLevel(nextLevel!),
-                    onBack: this.retryBackToLobby,
-                }),
-                "处理下一关准备失败",
-            );
+            const recoveryOpened = await this.openLoadErrorPanel({
+                title: "下一关准备失败",
+                message: "下一关 JSON 无法加载或校验失败，可以重新尝试或返回大厅。",
+                onRetry: () => this.retryNextLevel(nextLevel),
+                onBack: this.retryBackToLobby,
+            });
+            if (
+                !recoveryOpened &&
+                this.node.isValid &&
+                requestId === this._nextLevelRequestId
+            ) {
+                UIManager.get<UIGamePanel>("UIGamePanel")?.showRecoverableError(
+                    "下一关加载失败，请返回大厅后重试",
+                );
+            }
         }
-    };
+    }
 
     /** 收到返回事件后托管 Lobby 场景切换任务。 */
     private onBackToLobby = (): void => {
@@ -297,6 +346,9 @@ export class GameScene extends SceneBase {
             return;
         }
         this._sceneTransitioning = true;
+        this._nextLevelRequestId += 1;
+        this._nextLevelPreparing = false;
+        PuzzleLevelSession.cancelPendingSelection();
         const result = await SceneManager.load("Lobby");
         if (result.status === "loaded") {
             PuzzleLevelSession.clear();
@@ -398,6 +450,9 @@ export class GameScene extends SceneBase {
         this._panelRequestId += 1;
         this._resultPanelRequestId += 1;
         this._errorPanelRequestId += 1;
+        this._nextLevelRequestId += 1;
+        this._nextLevelPreparing = false;
+        PuzzleLevelSession.cancelPendingSelection();
         this._controller?.destroy();
         this._controller = null;
         this._levelConfig = null;

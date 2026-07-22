@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "level": 11,
+  "sourceImagePath": "textures/game/levels/level_011/level_011_source/spriteFrame",
+  "rows": 3,
+  "columns": 3,
+  "boardWidth": 448,
+  "boardHeight": 448,
+  "timeLimitSeconds": 30,
+  "pieceOrder": [
+    4,
+    0,
+    7,
+    2,
+    8,
+    3,
+    6,
+    1,
+    5
+  ]
+}

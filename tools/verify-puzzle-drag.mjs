@@ -88,13 +88,17 @@ function countCorrectAdjacentEdges(rows, columns, pieceIdsByCell) {
 
 // 第 5 关必须保持本次需求指定的 9×9、无限时间和无初始连接状态。
 {
-  const definitions = JSON.parse(
+  const level5 = JSON.parse(
     fs.readFileSync(
-      path.join(projectRoot, "tools/config/puzzle-levels.json"),
+      path.join(
+        projectRoot,
+        "assets/resources/configs/game/levels/level_005.json",
+      ),
       "utf8",
     ),
   );
-  const level5 = { ...definitions.defaults, ...definitions.levels["5"] };
+  assert.equal(level5.schemaVersion, 1, "第 5 关配置版本必须为 1。");
+  assert.equal(level5.level, 5, "第 5 关配置编号必须为 5。");
   assert.equal(level5.rows, 9, "第 5 关行数必须为 9。");
   assert.equal(level5.columns, 9, "第 5 关列数必须为 9。");
   assert.equal(level5.timeLimitSeconds, null, "第 5 关必须为无限时间。");

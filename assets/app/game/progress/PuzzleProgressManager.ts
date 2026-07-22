@@ -1,7 +1,7 @@
 import { StorageManager } from "../../core/data/StorageManager";
 import {
   getNextPuzzleLevelNumber,
-  getPuzzleLevelConfig,
+  hasPuzzleLevel,
   PuzzleLevelNumbers,
 } from "../config/PuzzleLevelConfig";
 
@@ -65,10 +65,10 @@ export class PuzzleProgressManager {
     return PuzzleLevelNumbers[0];
   }
 
-  /** 判断指定关卡是否已经解锁且存在有效配置。 */
+  /** 判断指定关卡是否已经解锁且已登记 JSON 资源。 */
   public static isUnlocked(level: number): boolean {
     return (
-      getPuzzleLevelConfig(level) !== null &&
+      hasPuzzleLevel(level) &&
       this.getProgress().unlockedLevels.indexOf(level) >= 0
     );
   }

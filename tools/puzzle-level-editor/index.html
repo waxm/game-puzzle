@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="WorkAI 拼图关卡 JSON 本地编辑器"
+    />
+    <title>拼图关卡编辑器 · WorkAI</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <div>
+            <p class="eyebrow">WORKAI · LOCAL TOOL</p>
+            <h1>拼图关卡编辑器</h1>
+          </div>
+        </div>
+        <div class="top-actions">
+          <span class="connection-state" id="connectionState">
+            <i aria-hidden="true"></i>正在连接本地工程
+          </span>
+          <button class="button button-subtle" id="importButton" type="button">
+            导入 JSON
+          </button>
+          <button class="button button-subtle" id="downloadButton" type="button">
+            下载 JSON
+          </button>
+          <button class="button button-primary" id="saveButton" type="button">
+            保存到工程
+          </button>
+          <input id="importInput" type="file" accept="application/json,.json" hidden />
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="level-sidebar" aria-label="关卡列表">
+          <div class="sidebar-heading">
+            <div>
+              <p class="section-kicker">LEVELS</p>
+              <h2>关卡列表</h2>
+            </div>
+            <span class="count-pill" id="levelCount">0</span>
+          </div>
+          <label class="search-field">
+            <span class="sr-only">搜索关卡</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="6.5"></circle>
+              <path d="m16 16 4 4"></path>
+            </svg>
+            <input id="levelSearch" type="search" placeholder="输入关卡编号" />
+          </label>
+          <div class="level-list" id="levelList" role="listbox" aria-label="选择关卡"></div>
+        </aside>
+
+        <section class="editor-area">
+          <div class="editor-heading">
+            <div>
+              <p class="section-kicker">PUZZLE CONFIGURATION</p>
+              <div class="title-row">
+                <h2 id="editorTitle">等待载入关卡</h2>
+                <span class="dirty-badge" id="dirtyBadge" hidden>未保存</span>
+              </div>
+            </div>
+            <p class="save-path" id="savePath">assets/resources/configs/game/levels</p>
+          </div>
+
+          <div class="editor-grid">
+            <section class="preview-card card">
+              <div class="card-heading">
+                <div>
+                  <p class="section-kicker">LIVE PREVIEW</p>
+                  <h3>切片乱序预览</h3>
+                </div>
+                <span class="preview-size" id="previewSize">—</span>
+              </div>
+
+              <div class="canvas-stage" id="canvasStage">
+                <canvas id="puzzleCanvas" aria-label="拼图切片预览"></canvas>
+                <div class="canvas-placeholder" id="canvasPlaceholder">
+                  <div class="placeholder-grid" aria-hidden="true">
+                    <span></span><span></span><span></span><span></span>
+                  </div>
+                  <strong>选择一个关卡开始编辑</strong>
+                  <small>可在预览区拖拽两个块进行交换</small>
+                </div>
+              </div>
+
+              <div class="preview-toolbar">
+                <button class="button button-dark" id="shuffleButton" type="button">
+                  随机排列
+                </button>
+                <button class="button button-light" id="solveButton" type="button">
+                  正确顺序
+                </button>
+                <button class="button button-light" id="rebuildButton" type="button">
+                  按行列重建
+                </button>
+              </div>
+              <p class="preview-hint">
+                pieceOrder 表示“每个棋盘位置放哪个原图切片”；按住一个格子并拖到另一个格子即可交换。
+              </p>
+            </section>
+
+            <section class="form-card card">
+              <div class="card-heading">
+                <div>
+                  <p class="section-kicker">JSON FIELDS</p>
+                  <h3>关卡参数</h3>
+                </div>
+                <span class="schema-pill">schema v1</span>
+              </div>
+
+              <form id="configForm" novalidate>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>关卡编号</span>
+                    <input id="levelField" type="number" readonly />
+                  </label>
+                  <label class="field field-wide">
+                    <span>图片资源路径</span>
+                    <input id="sourceImagePathField" type="text" readonly />
+                  </label>
+                  <label class="field">
+                    <span>行数 rows</span>
+                    <input id="rowsField" type="number" min="1" step="1" inputmode="numeric" />
+                  </label>
+                  <label class="field">
+                    <span>列数 columns</span>
+                    <input id="columnsField" type="number" min="1" step="1" inputmode="numeric" />
+                  </label>
+                  <label class="field">
+                    <span>棋盘宽度</span>
+                    <div class="input-unit">
+                      <input id="boardWidthField" type="number" min="1" step="1" />
+                      <b>px</b>
+                    </div>
+                  </label>
+                  <label class="field">
+                    <span>棋盘高度</span>
+                    <div class="input-unit">
+                      <input id="boardHeightField" type="number" min="1" step="1" />
+                      <b>px</b>
+                    </div>
+                  </label>
+                </div>
+
+                <fieldset class="time-fieldset">
+                  <legend>关卡计时</legend>
+                  <div class="segmented-control" role="group" aria-label="关卡计时方式">
+                    <label>
+                      <input id="timedMode" type="radio" name="timeMode" value="timed" />
+                      <span>限时</span>
+                    </label>
+                    <label>
+                      <input id="untimedMode" type="radio" name="timeMode" value="untimed" />
+                      <span>不限时</span>
+                    </label>
+                  </div>
+                  <label class="field time-value" id="timeValueGroup">
+                    <span>限时秒数</span>
+                    <div class="input-unit">
+                      <input id="timeLimitField" type="number" min="1" step="1" />
+                      <b>秒</b>
+                    </div>
+                  </label>
+                </fieldset>
+
+                <label class="field order-field">
+                  <span class="field-label-row">
+                    <span>切片顺序 pieceOrder</span>
+                    <small id="pieceOrderCount">0 项</small>
+                  </span>
+                  <textarea
+                    id="pieceOrderField"
+                    rows="7"
+                    spellcheck="false"
+                    placeholder="例如：4, 0, 7, 2, 8, 3, 6, 1, 5"
+                  ></textarea>
+                </label>
+
+                <div class="validation-panel" id="validationPanel" data-state="idle" aria-live="polite">
+                  <div class="validation-icon" aria-hidden="true">✓</div>
+                  <div>
+                    <strong id="validationTitle">等待选择关卡</strong>
+                    <p id="validationMessage">载入后会实时校验 JSON 字段和切片排列。</p>
+                  </div>
+                </div>
+              </form>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

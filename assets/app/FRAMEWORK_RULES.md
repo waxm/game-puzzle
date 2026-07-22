@@ -82,7 +82,9 @@ textures/game/levels/level_001/level_001_source.png
 textures/game/levels/level_002/level_002_source.png
 ```
 
-玩法参数维护在 `tools/config/puzzle-levels.json`。运行 `npm run generate:levels` 根据真实资源目录生成关卡目录；运行时加载路径必须以 `/spriteFrame` 结尾，关卡 SpriteFrame 必须关闭动态合图。
+每关完整玩法参数维护在 `assets/resources/configs/game/levels/level_XXX.json`。运行
+`npm run editor:levels` 可视化编辑，运行 `npm run generate:levels` 根据 JSON 与真实资源目录
+生成轻量关卡索引；运行时加载路径必须以 `/spriteFrame` 结尾，关卡 SpriteFrame 必须关闭动态合图。
 
 ## Prefab 约束
 
@@ -96,7 +98,9 @@ textures/game/levels/level_002/level_002_source.png
 ```text
 npm run typecheck              # TypeScript 编译检查
 npm run verify:core            # 核心框架验证
+npm run verify:puzzle-progress # 关卡进度与异步 JSON 加载验证
 npm run validate:levels        # 关卡配置与图片检查
+npm run verify:level-editor    # 关卡编辑器与保存接口验证
 npm run verify:puzzle-groups   # 拼图组合和轮廓验证
 npm run verify:puzzle-drag     # 拖拽规则与死局模拟
 npm run validate:cocos         # Scene、Prefab、UUID 和绑定校验
