@@ -60,6 +60,9 @@ const state = {
   imageRequestId: 0,
   dirty: false,
   valid: false,
+  saving: false,
+  editorEnabled: false,
+  interactionLocked: false,
   dragStartIndex: null,
   dragHoverIndex: null,
   canvasDisplayWidth: 0,
@@ -122,7 +125,7 @@ function bindEvents() {
 
   window.addEventListener("resize", scheduleCanvasRender);
   window.addEventListener("beforeunload", (event) => {
-    if (state.dirty) {
+    if (state.dirty || state.saving) {
       event.preventDefault();
       event.returnValue = "";
     }
@@ -157,6 +160,7 @@ function renderLevelList() {
     button.type = "button";
     button.className = "level-item";
     button.dataset.level = String(entry.level);
+    button.disabled = state.interactionLocked;
     button.setAttribute("role", "option");
     button.setAttribute(
       "aria-selected",
@@ -193,6 +197,9 @@ function renderLevelList() {
 
 /** 载入选中关卡；切换前会保护尚未保存的改动。 */
 async function selectLevel(level, force = false) {
+  if (state.interactionLocked) {
+    return;
+  }
   if (!force && level === state.selectedLevel) {
     return;
   }
@@ -256,7 +263,7 @@ function populateForm(config) {
 
 /** 从当前表单构建草稿并实时更新校验、脏状态和预览。 */
 function updateDraftFromForm() {
-  if (state.selectedLevel === null) {
+  if (state.interactionLocked || state.selectedLevel === null) {
     return;
   }
   try {
@@ -314,8 +321,8 @@ function refreshValidationAndPreview() {
   elements.pieceOrderCount.textContent = `${state.draft.pieceOrder?.length ?? 0} 项`;
   elements.previewSize.textContent = `${state.draft.boardWidth || "—"} × ${state.draft.boardHeight || "—"}`;
   updateDirtyState();
-  elements.saveButton.disabled = !state.valid;
-  elements.downloadButton.disabled = !state.valid;
+  elements.saveButton.disabled = !state.valid || state.interactionLocked;
+  elements.downloadButton.disabled = !state.valid || state.interactionLocked;
 }
 
 /** 严格校验完整单关 JSON，并返回字段顺序稳定的配置。 */
@@ -393,6 +400,9 @@ function createSourceImagePath(level) {
 
 /** 处理限时/不限时切换。 */
 function handleTimeModeChange() {
+  if (state.interactionLocked) {
+    return;
+  }
   updateTimeFieldState();
   updateDraftFromForm();
 }
@@ -406,6 +416,9 @@ function updateTimeFieldState() {
 
 /** 使用当前行列创建完整正确顺序。 */
 function rebuildPieceOrder() {
+  if (state.interactionLocked) {
+    return;
+  }
   let rows;
   let columns;
   try {
@@ -423,7 +436,7 @@ function rebuildPieceOrder() {
 
 /** 将现有切片恢复为正确顺序。 */
 function solvePieceOrder() {
-  if (!state.draft) {
+  if (state.interactionLocked || !state.draft) {
     return;
   }
   const pieceCount = Number(elements.rowsField.value) * Number(elements.columnsField.value);
@@ -437,6 +450,9 @@ function solvePieceOrder() {
 
 /** 使用 Fisher–Yates 创建不等于正确顺序的随机排列。 */
 function shufflePieceOrder() {
+  if (state.interactionLocked) {
+    return;
+  }
   const pieceCount = Number(elements.rowsField.value) * Number(elements.columnsField.value);
   if (!Number.isSafeInteger(pieceCount) || pieceCount <= 0) {
     showToast("请先填写有效的行数和列数。", "error");
@@ -637,6 +653,9 @@ function drawDragHighlights(context, config, cellWidth, cellHeight) {
 
 /** 开始拖拽一个棋盘格。 */
 function handleCanvasPointerDown(event) {
+  if (state.interactionLocked) {
+    return;
+  }
   const index = getCanvasCellIndex(event);
   if (index === null || !state.valid) {
     return;
@@ -662,6 +681,10 @@ function handleCanvasPointerMove(event) {
 
 /** 结束拖拽并交换两个位置的切片编号。 */
 function handleCanvasPointerUp(event) {
+  if (state.interactionLocked) {
+    cancelCanvasDrag(event);
+    return;
+  }
   if (state.dragStartIndex === null || !state.draft) {
     return;
   }
@@ -729,6 +752,10 @@ function scheduleCanvasRender() {
 
 /** 导入并严格校验一个既有关卡的完整 JSON。 */
 async function handleImportFile() {
+  if (state.interactionLocked) {
+    elements.importInput.value = "";
+    return;
+  }
   const [file] = elements.importInput.files;
   elements.importInput.value = "";
   if (!file) {
@@ -739,6 +766,7 @@ async function handleImportFile() {
     return;
   }
 
+  setInteractionLocked(true);
   try {
     const value = JSON.parse(await file.text());
     if (!Number.isInteger(value?.level)) {
@@ -771,7 +799,6 @@ async function handleImportFile() {
     populateForm(config);
     updateEditorHeading(config);
     renderLevelList();
-    setEditorEnabled(true);
     await loadPuzzleImage(payload.imageUrl, config.level);
     if (requestId !== state.levelRequestId) {
       return;
@@ -780,11 +807,16 @@ async function handleImportFile() {
     showToast(`已导入 ${file.name}，保存前请检查预览。`);
   } catch (error) {
     showToast(`导入失败：${getErrorMessage(error)}`, "error");
+  } finally {
+    setInteractionLocked(false);
   }
 }
 
 /** 下载当前已通过校验的规范 JSON。 */
 function downloadCurrentConfig() {
+  if (state.interactionLocked) {
+    return;
+  }
   if (!state.valid || !state.draft) {
     showToast("当前配置未通过校验，不能下载。", "error");
     return;
@@ -802,20 +834,30 @@ function downloadCurrentConfig() {
 
 /** 通过本地服务严格校验并原子保存当前既有关卡。 */
 async function saveCurrentConfig() {
+  if (state.saving || state.interactionLocked || !state.editorEnabled) {
+    return;
+  }
   if (!state.valid || !state.draft || state.selectedLevel === null) {
     showToast("当前配置未通过校验，不能保存。", "error");
     return;
   }
-  elements.saveButton.disabled = true;
+
+  // 保存期间只使用固定快照，避免异步回包读取已经变化的关卡或草稿。
+  const targetLevel = state.selectedLevel;
+  const savingDraft = cloneConfig(state.draft);
   const originalLabel = elements.saveButton.textContent;
+  setSavingState(true);
   elements.saveButton.textContent = "保存中…";
   try {
-    const payload = await requestJson(`/api/levels/${state.selectedLevel}`, {
+    const payload = await requestJson(`/api/levels/${targetLevel}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(state.draft),
+      body: JSON.stringify(savingDraft),
     });
-    const config = validateConfig(payload.config, state.selectedLevel);
+    const config = validateConfig(payload.config, targetLevel);
+    if (state.selectedLevel !== targetLevel) {
+      throw new Error(`保存期间关卡状态发生变化：${targetLevel}`);
+    }
     state.originalConfig = cloneConfig(config);
     state.draft = cloneConfig(config);
     state.dirty = false;
@@ -827,8 +869,8 @@ async function saveCurrentConfig() {
   } catch (error) {
     showToast(`保存失败：${getErrorMessage(error)}`, "error");
   } finally {
+    setSavingState(false);
     elements.saveButton.textContent = originalLabel;
-    elements.saveButton.disabled = !state.valid;
   }
 }
 
@@ -871,6 +913,8 @@ function setValidation(status, title, message) {
 
 /** 控制依赖当前关卡的编辑功能是否可用。 */
 function setEditorEnabled(enabled) {
+  const effectiveEnabled = enabled && !state.interactionLocked;
+  state.editorEnabled = effectiveEnabled;
   for (const element of [
     elements.importButton,
     elements.downloadButton,
@@ -887,13 +931,36 @@ function setEditorEnabled(enabled) {
     elements.timeLimitField,
     elements.pieceOrderField,
   ]) {
-    element.disabled = !enabled;
+    element.disabled = !effectiveEnabled;
   }
-  if (enabled) {
+  if (effectiveEnabled) {
     updateTimeFieldState();
     elements.saveButton.disabled = !state.valid;
     elements.downloadButton.disabled = !state.valid;
   }
+}
+
+/** 异步导入或保存期间统一锁定会改变关卡、草稿或预览的全部交互。 */
+function setInteractionLocked(locked) {
+  state.interactionLocked = locked;
+  if (locked) {
+    cancelCanvasDrag();
+  }
+  setEditorEnabled(!locked && state.draft !== null);
+  elements.levelSearch.disabled = locked;
+  elements.levelList.inert = locked;
+  elements.levelList.setAttribute("aria-busy", String(locked));
+  elements.puzzleCanvas.inert = locked;
+  elements.puzzleCanvas.setAttribute("aria-disabled", String(locked));
+  for (const button of elements.levelList.querySelectorAll(".level-item")) {
+    button.disabled = locked;
+  }
+}
+
+/** 标记保存生命周期，并复用统一交互锁阻止单标签页内的并发修改。 */
+function setSavingState(saving) {
+  state.saving = saving;
+  setInteractionLocked(saving);
 }
 
 /** 更新本地服务连接状态。 */

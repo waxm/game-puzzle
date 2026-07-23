@@ -345,8 +345,13 @@ h3 {
   transition: background 130ms ease, border-color 130ms ease;
 }
 
-.level-item:hover {
+.level-item:hover:not(:disabled) {
   background: #f2f1fb;
+}
+
+.level-item:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .level-item.selected {
@@ -518,6 +523,11 @@ h3 {
 
 #puzzleCanvas.dragging {
   cursor: grabbing;
+}
+
+#puzzleCanvas[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 0.82;
 }
 
 .canvas-placeholder {
