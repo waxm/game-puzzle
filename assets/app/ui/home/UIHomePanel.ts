@@ -63,7 +63,7 @@ export class UIHomePanel extends UIBase {
         super.onOpen(params);
         const homeParams = this.readOpenParams(params);
         this._targetLevel = homeParams.targetLevel;
-        this.titleLabel!.string = "拼图挑战";
+        this.titleLabel!.string = "光影拼图";
         this.startButtonLabel!.string = `开始第 ${homeParams.targetLevel} 关`;
         this.tipLabel!.string =
             `已完成 ${homeParams.completedCount} / ${homeParams.totalCount}，` +
