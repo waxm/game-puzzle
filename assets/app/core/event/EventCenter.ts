@@ -55,7 +55,11 @@ export class EventCenter {
      *
      * 不传 callback 和 target 时，会移除这个事件名下的全部监听。
      */
-    public static off(eventName: string, callback?: EventCallback, target?: unknown): void {
+    public static off<T = unknown>(
+        eventName: string,
+        callback?: EventCallback<T>,
+        target?: unknown,
+    ): void {
         const listeners = this._listeners.get(eventName);
 
         if (!listeners) {

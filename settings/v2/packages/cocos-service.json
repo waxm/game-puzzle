@@ -1,7 +1,7 @@
 {
   "__version__": "3.0.7",
   "game": {
-    "name": "未知游戏",
+    "name": "光影拼图",
     "app_id": "UNKNOW",
     "c_id": "0"
   },

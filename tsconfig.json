@@ -4,7 +4,7 @@
 
     /* 项目自定义的 TypeScript 配置。 */
     "compilerOptions": {
-        "strict": false,
+        "strict": true,
 
         /* 忽略 Cocos 3.8.4 生成配置中的旧模块解析提示。 */
         "ignoreDeprecations": "5.0",

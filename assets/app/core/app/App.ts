@@ -8,6 +8,15 @@ import { TimerManager } from "../timer/TimerManager";
 import { UIManager } from "../ui/UIManager";
 import { Logger } from "../utils/Logger";
 
+/** 框架初始化时由独立游戏提供的项目配置。 */
+export interface AppInitOptions {
+    /** 当前游戏独立的存档命名空间，避免同域名下多个游戏共享数据。 */
+    storagePrefix?: string;
+
+    /** 当前游戏独立的日志前缀，便于区分不同项目的运行输出。 */
+    logPrefix?: string;
+}
+
 /**
  * 框架总入口。
  *
@@ -33,15 +42,18 @@ export class App {
      *
      * 第一版只做基础状态标记，后续可以在这里串起配置、存档、音频、UI 等模块。
      */
-    public static init(): void {
+    public static init(options: AppInitOptions = {}): void {
         if (this._inited) {
             Logger.warn("框架已经初始化过，跳过重复初始化。");
             return;
         }
 
+        if (options.logPrefix) {
+            Logger.setPrefix(options.logPrefix);
+        }
         Logger.info("框架初始化开始。");
 
-        StorageManager.init();
+        StorageManager.init(options.storagePrefix);
         AudioManager.init();
         // 音频节点跨场景常驻，因此用户音量也必须在框架启动时统一恢复。
         AudioManager.setMusicVolume(StorageManager.get("musicVolume", 0.8));

@@ -10,7 +10,7 @@ import { UIBase } from "./UIBase";
  * 建议后续从 UIConfig.json 中读取，再统一注册到 UIManager。
  */
 export interface UIConfig {
-    /** UI 名称，例如 UIHomePanel。 */
+    /** UI 名称，例如 UISettingsPanel。 */
     name: string;
 
     /** Prefab 路径，不带扩展名。 */
@@ -675,7 +675,7 @@ export class UIManager {
      * 节点开始销毁时提前结束 UI 生命周期，再归还 Prefab 资源所有权。
      *
      * Cocos 的 NODE_DESTROYED 事件早于子节点销毁；这是最后一个能安全访问按钮、
-     * Label 和运行时拼图节点的阶段，同时也让稍后的场景 onExit 只执行幂等空清理。
+     * Label 和其他动态子节点的阶段，同时也让稍后的场景 onExit 只执行幂等空清理。
      */
     private static handleManagedNodeDestroyed(node: Node): void {
         this._managedNodes.delete(node);

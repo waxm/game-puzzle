@@ -1,6 +1,6 @@
 {
     "name": "game-puzzle",
-    "uuid": "f5d9ee51-9d70-46ec-a31c-05b425aee493",
+    "uuid": "dca1744f-85d1-48a0-8a60-a3662e05bafb",
     "scripts": {
         "typecheck": "tsc --noEmit",
         "verify:core": "node tools/verify-core-managers.mjs",
@@ -18,7 +18,8 @@
         "generate:puzzle-prefabs": "node tools/create-puzzle-prefabs.mjs",
         "generate:load-error-prefab": "node tools/create-load-error-prefab.mjs",
         "validate:cocos": "node tools/validate-cocos-assets.mjs",
-        "verify": "npm run typecheck && npm run verify:cocos-web && npm run verify:core && npm run verify:puzzle-progress && npm run validate:levels && npm run verify:level-editor && npm run verify:puzzle-groups && npm run verify:puzzle-drag && npm run validate:cocos"
+        "verify": "npm run typecheck && npm run verify:cocos-web && npm run verify:core && npm run verify:game && npm run validate:cocos",
+        "verify:game": "npm run verify:puzzle-progress && npm run validate:levels && npm run verify:level-editor && npm run verify:puzzle-groups && npm run verify:puzzle-drag"
     },
     "creator": {
         "version": "3.8.4"

@@ -341,9 +341,9 @@ test("SceneManager 返回明确成功、失败和回调错误结果", async () =
   SceneManager.syncCurrentScene();
   assert.equal(SceneManager.currentSceneName, "Boot");
 
-  const loaded = await SceneManager.load("Lobby");
+  const loaded = await SceneManager.load("SceneA");
   assert.equal(loaded.status, "loaded");
-  assert.equal(SceneManager.currentSceneName, "Lobby");
+  assert.equal(SceneManager.currentSceneName, "SceneA");
 
   cocos.director.failNextLoad(new Error("预期场景失败"));
   const failed = await SceneManager.load("Broken");
@@ -351,26 +351,26 @@ test("SceneManager 返回明确成功、失败和回调错误结果", async () =
   assert.equal(failed.reason, "load-scene");
   assert.equal(SceneManager.loading, false);
 
-  const callbackFailed = await SceneManager.load("Game", () => {
+  const callbackFailed = await SceneManager.load("SceneB", () => {
     throw new Error("预期场景回调错误");
   });
   assert.equal(callbackFailed.status, "failed");
   assert.equal(callbackFailed.reason, "loaded-callback");
-  assert.equal(SceneManager.currentSceneName, "Game");
+  assert.equal(SceneManager.currentSceneName, "SceneB");
 });
 
 test("SceneManager 忽略并发请求并取消 reset 前的旧回调", async () => {
   cocos.director.deferNextLoad();
-  const firstRequest = SceneManager.load("Game");
-  const ignored = await SceneManager.load("Lobby");
+  const firstRequest = SceneManager.load("SceneBusy");
+  const ignored = await SceneManager.load("SceneIgnored");
   assert.equal(ignored.status, "ignored");
   assert.equal(ignored.reason, "busy");
-  assert.equal(ignored.activeSceneName, "Game");
+  assert.equal(ignored.activeSceneName, "SceneBusy");
   cocos.director.completeNextLoad();
   assert.equal((await firstRequest).status, "loaded");
 
   cocos.director.deferNextLoad();
-  const staleRequest = SceneManager.load("Result");
+  const staleRequest = SceneManager.load("SceneStale");
   SceneManager.reset();
   cocos.director.completeNextLoad();
   const cancelled = await staleRequest;
@@ -780,7 +780,7 @@ test("AudioManager 创建唯一常驻双音源并跨场景复用", () => {
   assert.equal(cocos.game.listenerCount(cocos.Game.EVENT_HIDE), 1);
   assert.equal(cocos.game.listenerCount(cocos.Game.EVENT_SHOW), 1);
 
-  cocos.director.setSceneName("Game");
+  cocos.director.setSceneName("SceneA");
   assert.equal(audioRoot.isValid, true);
   assert.equal(audioRoot.parent, cocos.director.getScene());
   assert.equal(cocos.director.isPersistRootNode(audioRoot), true);
@@ -1034,7 +1034,10 @@ test("PoolManager 取消加载中创建并拒绝缺失生命周期组件", async
 
 test("App 初始化幂等并按顺序重置全局状态", async () => {
   cocos.director.setSceneName("Boot");
-  App.init();
+  App.init({
+    storagePrefix: "CoreGame",
+    logPrefix: "[CoreGame]",
+  });
   App.init();
   assert.equal(App.inited, true);
   assert.equal(App.get("StorageManager"), StorageManager);
@@ -1047,6 +1050,7 @@ test("App 初始化幂等并按顺序重置全局状态", async () => {
   assert.equal(cocos.game.listenerCount(cocos.Game.EVENT_SHOW), 1);
 
   StorageManager.set("persistent", 7);
+  assert.equal(cocos.sys.localStorage.getItem("CoreGame:persistent"), "7");
   let eventCount = 0;
   EventCenter.on("reset-event", () => (eventCount += 1));
   TimerManager.delay(() => undefined, 1);

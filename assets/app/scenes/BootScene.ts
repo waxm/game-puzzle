@@ -1,5 +1,6 @@
 import { _decorator } from "cc";
 import { App } from "../core/app/App";
+import { PUZZLE_APP_INIT_OPTIONS } from "../game/config/PuzzleProjectConfig";
 import { SceneBase } from "../core/scene/SceneBase";
 import { SceneManager } from "../core/scene/SceneManager";
 import { UIManager } from "../core/ui/UIManager";
@@ -29,8 +30,8 @@ export class BootScene extends SceneBase {
     /** 初始化框架、注册启动恢复界面并进入大厅。 */
     protected onEnter(): void {
         super.onEnter();
+        App.init(PUZZLE_APP_INIT_OPTIONS);
         Logger.info("进入启动场景。");
-        App.init();
         this.prepareLoadErrorPanel();
         this.runAsyncTask(this.enterNextScene(), "进入大厅场景");
     }

@@ -1,0 +1,11 @@
+{
+    "schemaVersion": 1,
+    "repository": "git@github.com:waxm/cocos-game-framework.git",
+    "branch": "dev",
+    "commit": "eecf94ba6c2a113a5c03eb09df4f03d953e59ad1",
+    "createdAt": "2026-06-01T19:38:31+08:00",
+    "syncedAt": "2026-07-27T10:36:29.519Z",
+    "creatorVersion": "3.8.4",
+    "game": "game-puzzle",
+    "migrationType": "legacy-repository-sync"
+}

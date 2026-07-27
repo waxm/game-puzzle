@@ -13,7 +13,7 @@ const { ccclass } = _decorator;
 /**
  * 场景脚本基类。
  *
- * Boot、Lobby、Game、Result 等场景脚本都可以继承它，统一场景进入、失败回滚和退出清理。
+ * 启动、菜单、玩法和结算等场景脚本都可以继承它，统一场景进入、失败回滚和退出清理。
  */
 @ccclass("SceneBase")
 export class SceneBase extends Component {

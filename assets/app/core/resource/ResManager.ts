@@ -91,7 +91,7 @@ export class ResManager {
     private static readonly _bundleLoadRequestIds: Map<string, number> = new Map();
 
     /** 当前仍由业务持有的资源句柄。 */
-    private static readonly _activeHandles: Set<ManagedResourceHandle<Asset>> = new Set();
+    private static readonly _activeHandles: Set<ResourceHandle<Asset>> = new Set();
 
     /** 资源键到业务引用次数的映射，用于诊断泄漏并保护仍在使用的分包。 */
     private static readonly _referenceCounts: Map<string, number> = new Map();
@@ -186,7 +186,7 @@ export class ResManager {
             options.bundleName ?? null,
             (releasedHandle) => this.releaseHandle(releasedHandle),
         );
-        this._activeHandles.add(handle as ManagedResourceHandle<Asset>);
+        this._activeHandles.add(handle);
         const key = this.createResourceKey(path, options.bundleName);
         this._referenceCounts.set(key, (this._referenceCounts.get(key) ?? 0) + 1);
         return handle;
@@ -350,7 +350,7 @@ export class ResManager {
             bundleName ?? null,
             (releasedHandle) => this.releaseHandle(releasedHandle),
         );
-        this._activeHandles.add(handle as ManagedResourceHandle<Asset>);
+        this._activeHandles.add(handle);
         const key = this.createResourceKey(path, bundleName);
         this._referenceCounts.set(key, (this._referenceCounts.get(key) ?? 0) + 1);
         return handle;
@@ -358,8 +358,7 @@ export class ResManager {
 
     /** 处理单个句柄归还，确保引用统计和 Asset.decRef 始终成对发生。 */
     private static releaseHandle<T extends Asset>(handle: ManagedResourceHandle<T>): void {
-        const managedHandle = handle as ManagedResourceHandle<Asset>;
-        if (!this._activeHandles.delete(managedHandle)) {
+        if (!this._activeHandles.delete(handle)) {
             return;
         }
 
