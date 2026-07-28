@@ -8,6 +8,7 @@ import {
   UITransform,
   Vec3,
 } from "cc";
+import type { PoolLifecycle } from "../../core/pool/PoolManager";
 import { UIBase } from "../../core/ui/UIBase";
 
 const { ccclass, property } = _decorator;
@@ -37,7 +38,7 @@ export interface PuzzlePieceParams {
  * 邻接关系。组合视图和棋盘状态统一由 UIGamePanel 管理。
  */
 @ccclass("PuzzlePiece")
-export class PuzzlePiece extends UIBase {
+export class PuzzlePiece extends UIBase implements PoolLifecycle {
   /** 超过此距离才进入拖拽，避免轻点或触摸抖动误换格。 */
   private static readonly DRAG_START_DISTANCE = 6;
 
@@ -68,6 +69,9 @@ export class PuzzlePiece extends UIBase {
   /** 当前是否允许拖拽。 */
   private _interactable = true;
 
+  /** 输入事件是否已经注册，保证首次加载与对象池复用都保持幂等。 */
+  private _inputEventsBound = false;
+
   /** 开始拖动回调。 */
   private _onDragStart:
     | ((id: number, touchStartPosition: Readonly<Vec3>) => boolean)
@@ -88,10 +92,36 @@ export class PuzzlePiece extends UIBase {
       imageSprite: this.imageSprite,
       numberLabel: this.numberLabel,
     });
-    this.node.on(Node.EventType.TOUCH_START, this.onTouchStart, this);
-    this.node.on(Node.EventType.TOUCH_MOVE, this.onTouchMove, this);
-    this.node.on(Node.EventType.TOUCH_END, this.onTouchEnd, this);
-    this.node.on(Node.EventType.TOUCH_CANCEL, this.onTouchCancel, this);
+    this.bindInputEvents();
+  }
+
+  /** 节点从对象池取出时恢复输入并接收本轮唯一业务参数。 */
+  public reuse(...args: unknown[]): void {
+    const params = args[0];
+    if (args.length !== 1 || !this.isPuzzlePieceParams(params)) {
+      throw new Error("PuzzlePiece 对象池复用参数无效。");
+    }
+    this.resetTouchState();
+    this.bindInputEvents();
+    this.setData(params);
+  }
+
+  /** 节点回收到对象池前注销输入、清空切图和全部旧回调引用。 */
+  public unuse(): void {
+    this._interactable = false;
+    this.unbindInputEvents();
+    this.resetTouchState();
+    this._pieceId = -1;
+    this._onDragStart = null;
+    this._onDragMove = null;
+    this._onDrop = null;
+    if (this.imageSprite) {
+      this.imageSprite.spriteFrame = null;
+    }
+    if (this.numberLabel) {
+      this.numberLabel.string = "";
+      this.numberLabel.node.active = false;
+    }
   }
 
   /**
@@ -127,17 +157,63 @@ export class PuzzlePiece extends UIBase {
     }
   }
 
-  /** 拼图块销毁时注销输入事件和回调引用。 */
+  /**
+   * 拼图块销毁时只清理纯运行状态。
+   *
+   * Creator 销毁父节点前会先销毁子节点并清空序列化组件引用，因此这里不能再次
+   * 执行会访问 Sprite、Label 或 Node 的 unuse；节点销毁流程会自动移除输入监听。
+   */
   protected onDestroy(): void {
-    this.node.off(Node.EventType.TOUCH_START, this.onTouchStart, this);
-    this.node.off(Node.EventType.TOUCH_MOVE, this.onTouchMove, this);
-    this.node.off(Node.EventType.TOUCH_END, this.onTouchEnd, this);
-    this.node.off(Node.EventType.TOUCH_CANCEL, this.onTouchCancel, this);
+    this._interactable = false;
+    this._inputEventsBound = false;
     this.resetTouchState();
+    this._pieceId = -1;
     this._onDragStart = null;
     this._onDragMove = null;
     this._onDrop = null;
     super.onDestroy();
+  }
+
+  /** 幂等注册四类触摸事件，回收后再次取出时恢复输入能力。 */
+  private bindInputEvents(): void {
+    if (this._inputEventsBound) {
+      return;
+    }
+    this._inputEventsBound = true;
+    this.node.on(Node.EventType.TOUCH_START, this.onTouchStart, this);
+    this.node.on(Node.EventType.TOUCH_MOVE, this.onTouchMove, this);
+    this.node.on(Node.EventType.TOUCH_END, this.onTouchEnd, this);
+    this.node.on(Node.EventType.TOUCH_CANCEL, this.onTouchCancel, this);
+  }
+
+  /** 幂等注销全部触摸事件，避免空闲池节点继续持有面板输入引用。 */
+  private unbindInputEvents(): void {
+    if (!this._inputEventsBound) {
+      return;
+    }
+    this._inputEventsBound = false;
+    this.node.off(Node.EventType.TOUCH_START, this.onTouchStart, this);
+    this.node.off(Node.EventType.TOUCH_MOVE, this.onTouchMove, this);
+    this.node.off(Node.EventType.TOUCH_END, this.onTouchEnd, this);
+    this.node.off(Node.EventType.TOUCH_CANCEL, this.onTouchCancel, this);
+  }
+
+  /** 在对象池边界校验外部参数，禁止无依据断言后写入旧节点。 */
+  private isPuzzlePieceParams(value: unknown): value is PuzzlePieceParams {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+    const params = value as Partial<PuzzlePieceParams>;
+    const id = params.id;
+    return (
+      typeof id === "number" &&
+      Number.isInteger(id) &&
+      id >= 0 &&
+      params.spriteFrame instanceof SpriteFrame &&
+      typeof params.onDragStart === "function" &&
+      typeof params.onDragMove === "function" &&
+      typeof params.onDrop === "function"
+    );
   }
 
   /** 记录唯一活动触摸及起点；此时尚不移动节点，等待超过拖拽阈值。 */

@@ -4,6 +4,7 @@
 
 ```text
 GameEvent.ts                              # 拼图与场景、UI 的事件协议
+PuzzleGameKey.ts                         # 业务对象池名称和动态资源路径
 config/PuzzleLevelConfig.ts               # 关卡 JSON 类型和轻量目录出口
 config/PuzzleLevelConfigLoader.ts         # 通过 ResManager 加载并严格校验单关 JSON
 config/PuzzleLevelCatalog.generated.ts    # 根据关卡 JSON 和图片生成轻量索引

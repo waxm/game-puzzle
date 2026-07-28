@@ -361,7 +361,9 @@ export class PuzzleBoard {
       throw new Error("自动组合找不到可作为基准的拼图组合。");
     }
 
-    const anchorPieceId = Math.min(...anchorGroup.pieceIds);
+    // Creator 的旧浏览器兼容编译不会可靠地把 Set 的函数展开转换为数组；
+    // 组合编号本身就是其最小成员编号，直接使用可避免运行时得到 Infinity。
+    const anchorPieceId = anchorGroup.id;
     if (this.getCellIndexByPieceId(anchorPieceId) !== anchorPieceId) {
       this.applyRequiredAutoPlan(
         this.createMovePlan(anchorPieceId, anchorPieceId),

@@ -116,6 +116,20 @@ export class Vec3 {
   clone() {
     return new Vec3(this.x, this.y, this.z);
   }
+
+  /** 使用向量或三个分量原地更新当前值。 */
+  set(valueOrX, y, z) {
+    if (valueOrX instanceof Vec3) {
+      this.x = valueOrX.x;
+      this.y = valueOrX.y;
+      this.z = valueOrX.z;
+      return this;
+    }
+    this.x = valueOrX ?? 0;
+    this.y = y ?? 0;
+    this.z = z ?? 0;
+    return this;
+  }
 }
 
 /** 测试专用四元数。 */
@@ -167,6 +181,10 @@ export class Node extends MockEventTarget {
   /** 核心框架使用到的节点事件。 */
   static EventType = {
     NODE_DESTROYED: "node-destroyed",
+    TOUCH_START: "touch-start",
+    TOUCH_MOVE: "touch-move",
+    TOUCH_END: "touch-end",
+    TOUCH_CANCEL: "touch-cancel",
   };
 
   /** 创建一个可挂载组件和子节点的测试节点。 */
@@ -382,6 +400,55 @@ export class AudioClip extends Asset {
   /** 返回音频时长。 */
   getDuration() {
     return this.duration;
+  }
+}
+
+/** 测试专用图片帧资源。 */
+export class SpriteFrame extends Asset {}
+
+/** 测试专用 UI 尺寸组件。 */
+export class UITransform extends Component {
+  /** 当前内容宽度。 */
+  width = 0;
+
+  /** 当前内容高度。 */
+  height = 0;
+
+  /** 记录组件内容尺寸。 */
+  setContentSize(width, height) {
+    this.width = width;
+    this.height = height;
+  }
+}
+
+/** 测试专用图片显示组件。 */
+export class Sprite extends Component {
+  /** 当前显示图片帧。 */
+  spriteFrame = null;
+}
+
+/** 测试专用文本组件。 */
+export class Label extends Component {
+  /** 当前文本。 */
+  string = "";
+}
+
+/** 测试专用触摸事件。 */
+export class EventTouch {
+  /** 创建指定触摸编号和 UI 坐标的事件。 */
+  constructor(id = 0, x = 0, y = 0) {
+    this.id = id;
+    this.location = { x, y };
+  }
+
+  /** 返回触摸编号。 */
+  getID() {
+    return this.id;
+  }
+
+  /** 返回 UI 坐标。 */
+  getUILocation() {
+    return { ...this.location };
   }
 }
 

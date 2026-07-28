@@ -3,7 +3,6 @@ import {
   Button,
   Color,
   Graphics,
-  instantiate,
   Label,
   Node,
   Prefab,
@@ -15,6 +14,7 @@ import {
   Vec3,
 } from "cc";
 import { EventCenter } from "../../core/event/EventCenter";
+import { PoolManager } from "../../core/pool/PoolManager";
 import { ResManager } from "../../core/resource/ResManager";
 import type { ResourceHandle } from "../../core/resource/ResManager";
 import { TimerManager } from "../../core/timer/TimerManager";
@@ -23,6 +23,10 @@ import { Logger } from "../../core/utils/Logger";
 import type { PuzzleLevelConfig } from "../../game/config/PuzzleLevelConfig";
 import { PuzzleGameController } from "../../game/controller/PuzzleGameController";
 import { GameEvent } from "../../game/GameEvent";
+import {
+  PuzzlePoolName,
+  PuzzleResourcePath,
+} from "../../game/PuzzleGameKey";
 import type { PuzzleBoardUpdate } from "../../game/logic/PuzzleBoard";
 import { PuzzleGrid } from "../../game/logic/PuzzleGrid";
 import { PuzzleImageSlicer } from "../../game/logic/PuzzleImageSlicer";
@@ -325,6 +329,7 @@ export class UIGamePanel extends UIBase {
     this._levelRequestId += 1;
     this.stopLevelTimer();
     this.cancelSourcePreviewWait();
+    TimerManager.clearByOwner(this);
     this.hideSourcePreview();
     this.unbindEvents();
     this.clearPieces();
@@ -426,6 +431,10 @@ export class UIGamePanel extends UIBase {
 
     let loadingHandle: ResourceHandle<SpriteFrame> | null = null;
     try {
+      await this.ensurePiecePool();
+      if (!this.node.isValid || requestId !== this._levelRequestId) {
+        return;
+      }
       // 关卡资源按 SpriteFrame 导入，裁切器使用完整底层纹理生成网格运行时切图。
       loadingHandle = await ResManager.acquire(
         this.levelConfig.sourceImagePath,
@@ -456,23 +465,25 @@ export class UIGamePanel extends UIBase {
       }
 
       this.gameController.pieceIdsByCell.forEach((pieceId, displayIndex) => {
-        const pieceNode = instantiate(this.piecePrefab!);
-        const piece = pieceNode.getComponent(PuzzlePiece);
-        if (!piece) {
-          throw new Error("PuzzlePiece.prefab 缺少 PuzzlePiece 组件。");
-        }
-
-        this.puzzleContainer!.addChild(pieceNode);
-        pieceNode.setPosition(this.getGridPosition(displayIndex));
-        piece.setDisplaySize(this._pieceWidth, this._pieceHeight);
-        piece.setData({
+        const pieceNode = PoolManager.get(PuzzlePoolName.Piece, {
           id: pieceId,
           spriteFrame: this._pieceFrames[pieceId],
           onDragStart: this.onPieceDragStart,
           onDragMove: this.onPieceDragMove,
           onDrop: this.onPieceDrop,
         });
+        if (!pieceNode) {
+          throw new Error("PuzzlePiece 对象池没有返回可用节点。");
+        }
+        const piece = pieceNode.getComponent(PuzzlePiece);
+        if (!piece) {
+          throw new Error("PuzzlePiece.prefab 缺少 PuzzlePiece 组件。");
+        }
+
         this._pieces.set(pieceId, { piece });
+        this.puzzleContainer!.addChild(pieceNode);
+        pieceNode.setPosition(this.getGridPosition(displayIndex));
+        piece.setDisplaySize(this._pieceWidth, this._pieceHeight);
       });
       this.feedbackLabel!.string = "拖动图片到目标格，与格内图片交换位置";
       this.startLevelTimer();
@@ -483,11 +494,26 @@ export class UIGamePanel extends UIBase {
       }
       this.hideSourcePreview();
       this.clearPieces();
-      this.feedbackLabel!.string = `第 ${this.levelConfig.level} 关图片加载失败，请查看控制台`;
+      this.feedbackLabel!.string = `第 ${this.levelConfig.level} 关创建失败，请查看控制台`;
       Logger.error(`创建第 ${this.levelConfig.level} 关拼图失败。`, error);
     } finally {
       // 请求若在加载完成前已被重玩或关闭，所有权尚未转交给面板，必须在此立即归还。
       loadingHandle?.release();
+    }
+  }
+
+  /** 确保场景级拼图对象池已经完成创建；同名并发请求由管理器自动合并。 */
+  private async ensurePiecePool(): Promise<void> {
+    if (PoolManager.has(PuzzlePoolName.Piece)) {
+      return;
+    }
+    await PoolManager.create(PuzzlePoolName.Piece, {
+      prefabPath: PuzzleResourcePath.PiecePrefab,
+      maxSize: 100,
+      lifecycleComponent: PuzzlePiece,
+    });
+    if (!PoolManager.has(PuzzlePoolName.Piece)) {
+      throw new Error("拼图对象池创建请求已经失效。");
     }
   }
 
@@ -537,10 +563,14 @@ export class UIGamePanel extends UIBase {
         }
 
         this.refreshSourcePreviewCountdown();
-        this._sourcePreviewTimerId = TimerManager.delay(countDown, 1);
+        this._sourcePreviewTimerId = TimerManager.delay(
+          countDown,
+          1,
+          this,
+        );
       };
 
-      this._sourcePreviewTimerId = TimerManager.delay(countDown, 1);
+      this._sourcePreviewTimerId = TimerManager.delay(countDown, 1, this);
     });
   }
 
@@ -1366,7 +1396,11 @@ export class UIGamePanel extends UIBase {
   private clearPieces(): void {
     this.finishConnectedGroupAnimation(true, false);
     Tween.stopAllByTarget(this.activeGroupRoot!);
-    this._pieces.forEach((runtime) => runtime.piece.node.destroy());
+    this._pieces.forEach((runtime) => {
+      if (!PoolManager.put(PuzzlePoolName.Piece, runtime.piece.node)) {
+        runtime.piece.node.destroy();
+      }
+    });
     this._pieces.clear();
     this.groupBorderRenderer.clear();
     this.resetActiveGroupRoot();
@@ -1378,7 +1412,7 @@ export class UIGamePanel extends UIBase {
     // Creator 会在帧末完成 destroy；延迟到下一轮任务再释放共享纹理，避免派生帧尚未销毁。
     const sourceHandle = this._levelSourceHandle;
     if (sourceHandle) {
-      TimerManager.delay(() => sourceHandle.release(), 0);
+      TimerManager.delay(() => sourceHandle.release(), 0, sourceHandle);
     }
     this._levelSourceHandle = null;
     this._toolPreviewRunning = false;

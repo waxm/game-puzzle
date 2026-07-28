@@ -43,6 +43,20 @@ function test(name, callback) {
 }
 
 try {
+  test("自动组合不使用旧浏览器不兼容的 Set 参数展开", () => {
+    const boardSource = fs.readFileSync(
+      path.join(
+        projectRoot,
+        "assets/app/game/logic/PuzzleBoard.ts",
+      ),
+      "utf8",
+    );
+    assert.doesNotMatch(
+      boardSource,
+      /Math\.min\(\.\.\.anchorGroup\.pieceIds\)/,
+    );
+  });
+
   test("拒绝尺寸不完整、重复或越界的棋盘排列", () => {
     assert.throws(() => new PuzzleBoard(0, 3, []), /尺寸无效/);
     assert.throws(

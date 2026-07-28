@@ -4,7 +4,7 @@
     "id": "puzzle-core",
     "title": "光影拼图核心玩法",
     "kind": "gameplay",
-    "phase": "contracted"
+    "phase": "test-ready"
   },
   "capabilities": {
     "ui": true,
@@ -277,7 +277,7 @@
         "id": "use-auto-merge",
         "owner": "puzzle-game-view",
         "trigger": "AutoMerge button click",
-        "handler": "PuzzleGameController.createAutoMergePlan"
+        "handler": "PuzzleGameController.autoMerge"
       },
       {
         "id": "restart-level",
@@ -379,7 +379,7 @@
       {
         "id": "dispose-cleanup",
         "title": "退出后事件、计时器、拼图节点、对象池借出节点和资源回到基线",
-        "status": "pending",
+        "status": "passed",
         "sources": [
           "project-rules"
         ]
@@ -387,7 +387,7 @@
       {
         "id": "main-scene-flow",
         "title": "Boot 到 Lobby 到 Game 再返回 Lobby 的实际流程无红错",
-        "status": "pending",
+        "status": "passed",
         "sources": [
           "project-rules",
           "existing-game-ui"
@@ -405,11 +405,11 @@
       },
       {
         "id": "creator-import",
-        "status": "pending"
+        "status": "passed"
       },
       {
         "id": "visual",
-        "status": "pending"
+        "status": "passed"
       },
       {
         "id": "functional-smoke",
@@ -417,7 +417,7 @@
       },
       {
         "id": "functional",
-        "status": "pending"
+        "status": "passed"
       },
       {
         "id": "api",
@@ -425,11 +425,11 @@
       },
       {
         "id": "lifecycle",
-        "status": "pending"
+        "status": "passed"
       },
       {
         "id": "regression",
-        "status": "pending"
+        "status": "passed"
       }
     ]
   },
@@ -455,7 +455,7 @@
     {
       "gate": "functional-smoke",
       "type": "automation",
-      "result": "PuzzleBoard 的 7 个规则用例与既有拖拽、组合、进度和 90 关配置回归全部通过。",
+      "result": "PuzzleBoard 的 8 个规则与 Web 兼容用例，以及既有拖拽、组合、进度和 90 关配置回归全部通过。",
       "reference": "tools/verify-puzzle-rules.mjs"
     },
     {
@@ -469,6 +469,36 @@
       "type": "automation",
       "result": "6 个控制器用例覆盖开始、暂停恢复、成功、失败、重开、重复输入和销毁状态边界。",
       "reference": "npm run verify:puzzle-controller"
+    },
+    {
+      "gate": "creator-import",
+      "type": "creator",
+      "result": "Cocos Creator 3.8.4 完成全部业务脚本导入和类型注册，并刷新 web-mobile、debug=false 构建产物。",
+      "reference": "build/web-mobile/src/settings.json"
+    },
+    {
+      "gate": "visual",
+      "type": "visual",
+      "result": "实际关卡在 375×667 短屏与 430×932 长屏下完整显示标题、进度、计时、棋盘、道具和操作说明。",
+      "reference": "browser-smoke://2026-07-28/puzzle-responsive"
+    },
+    {
+      "gate": "functional",
+      "type": "manual",
+      "result": "真实 Web Mobile 产物完成进入关卡、自动组合推进、成功结算、失败重玩和返回大厅，最终流程无控制台错误。",
+      "reference": "browser-smoke://2026-07-28/puzzle-main-flow"
+    },
+    {
+      "gate": "lifecycle",
+      "type": "automation",
+      "result": "真实 PuzzlePiece 完成取出、回池、同节点复用、监听清理、安全销毁和 Prefab 句柄释放验证；浏览器重复重玩和退出无红错。",
+      "reference": "npm run verify:puzzle-lifecycle"
+    },
+    {
+      "gate": "regression",
+      "type": "automation",
+      "result": "完整 npm run verify 通过，覆盖核心框架、90 关配置、拖拽压力、自动组合、状态机、生命周期和 Cocos 资产绑定。",
+      "reference": "npm run verify"
     }
   ],
   "deliverables": [
@@ -524,6 +554,13 @@
     {
       "kind": "automation",
       "path": "tools/verify-puzzle-controller.mjs",
+      "requiredFor": [
+        "test"
+      ]
+    },
+    {
+      "kind": "automation",
+      "path": "tools/verify-puzzle-lifecycle.mjs",
       "requiredFor": [
         "test"
       ]

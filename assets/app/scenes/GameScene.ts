@@ -1,6 +1,7 @@
 import { _decorator, Game, game, Node } from "cc";
 import { AudioManager } from "../core/audio/AudioManager";
 import { EventCenter } from "../core/event/EventCenter";
+import { PoolManager } from "../core/pool/PoolManager";
 import { SceneBase } from "../core/scene/SceneBase";
 import { SceneManager } from "../core/scene/SceneManager";
 import { UIManager } from "../core/ui/UIManager";
@@ -8,6 +9,7 @@ import { Logger } from "../core/utils/Logger";
 import type { PuzzleLevelConfig } from "../game/config/PuzzleLevelConfig";
 import { PuzzleGameController } from "../game/controller/PuzzleGameController";
 import { GameEvent } from "../game/GameEvent";
+import { PuzzlePoolName } from "../game/PuzzleGameKey";
 import type { PuzzleGameState } from "../game/model/PuzzleGameState";
 import { PuzzleLevelSession } from "../game/progress/PuzzleLevelSession";
 import {
@@ -489,6 +491,7 @@ export class GameScene extends SceneBase {
         UIManager.close("UIGamePanel", true);
         UIManager.close("UIResultPanel", true);
         UIManager.close("UILoadErrorPanel", true);
+        PoolManager.clear(PuzzlePoolName.Piece, true);
         AudioManager.stopMusic();
     }
 }
