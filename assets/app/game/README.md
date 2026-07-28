@@ -10,6 +10,7 @@ config/PuzzleLevelCatalog.generated.ts    # 根据关卡 JSON 和图片生成轻
 controller/PuzzleGameController.ts        # 单关进度、完成和失败状态
 logic/PuzzleGrid.ts                       # 规则网格和坐标关系
 logic/PuzzleImageSlicer.ts                # 完整原图运行时切分
+logic/PuzzleBoard.ts                      # 棋盘占用、组合、进度和完成规则真相
 logic/PuzzleMovePlanner.ts                # 无空格棋盘移动规划
 logic/PuzzleGroupContour.ts               # 组合外围轮廓计算
 model/PuzzleGameState.ts                  # 关卡运行状态和事件参数

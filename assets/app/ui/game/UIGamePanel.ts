@@ -21,23 +21,19 @@ import { TimerManager } from "../../core/timer/TimerManager";
 import { UIBase } from "../../core/ui/UIBase";
 import { Logger } from "../../core/utils/Logger";
 import type { PuzzleLevelConfig } from "../../game/config/PuzzleLevelConfig";
+import { PuzzleGameController } from "../../game/controller/PuzzleGameController";
 import { GameEvent } from "../../game/GameEvent";
+import type { PuzzleBoardUpdate } from "../../game/logic/PuzzleBoard";
 import { PuzzleGrid } from "../../game/logic/PuzzleGrid";
 import { PuzzleImageSlicer } from "../../game/logic/PuzzleImageSlicer";
 import {
   PuzzleMoveFailureReason,
-  PuzzleMovePlanner,
 } from "../../game/logic/PuzzleMovePlanner";
 import type { PuzzleMovePlan } from "../../game/logic/PuzzleMovePlanner";
 import {
   PuzzleGameState,
-  PuzzlePieceDropRequest,
 } from "../../game/model/PuzzleGameState";
-import { PuzzleGroupManager } from "../../game/model/PuzzleGroup";
-import type {
-  PuzzleGroup,
-  PuzzleGroupConnection,
-} from "../../game/model/PuzzleGroup";
+import type { PuzzleGroup } from "../../game/model/PuzzleGroup";
 import { PuzzleGroupBorderRenderer } from "./PuzzleGroupBorderRenderer";
 import { PuzzlePiece } from "./PuzzlePiece";
 
@@ -53,6 +49,9 @@ interface PieceRuntime {
 export interface UIGamePanelOpenParams {
   /** 当前需要创建和展示的关卡配置。 */
   levelConfig: PuzzleLevelConfig;
+
+  /** 当前关卡唯一的棋盘和玩法控制器。 */
+  controller: PuzzleGameController;
 }
 
 /** 通用规则网格相邻拼接面板。 */
@@ -170,15 +169,6 @@ export class UIGamePanel extends UIBase {
   /** 拼图编号到运行实例的映射。 */
   private readonly _pieces = new Map<number, PieceRuntime>();
 
-  /** 按显示格子编号保存当前占用该格子的拼图编号。 */
-  private readonly _pieceIdsByCell: number[] = [];
-
-  /** 拼图编号到当前显示格子编号的反向索引。 */
-  private readonly _cellIndexByPieceId = new Map<number, number>();
-
-  /** 当前棋盘唯一的真实组合状态管理器。 */
-  private readonly _groupManager = new PuzzleGroupManager();
-
   /** 使用 Prefab 显式绑定节点创建的组合边框渲染器。 */
   private _groupBorderRenderer: PuzzleGroupBorderRenderer | null = null;
 
@@ -205,6 +195,9 @@ export class UIGamePanel extends UIBase {
 
   /** 当前打开面板时由场景传入的关卡配置。 */
   private _levelConfig: PuzzleLevelConfig | null = null;
+
+  /** 当前打开面板时由场景传入的唯一玩法控制器。 */
+  private _gameController: PuzzleGameController | null = null;
 
   /** 当前关卡单块拼图的显示宽度。 */
   private _pieceWidth = 0;
@@ -303,10 +296,12 @@ export class UIGamePanel extends UIBase {
   /** 面板打开时读取关卡参数并创建对应拼图。 */
   protected onOpen(params?: unknown): void {
     super.onOpen(params);
-    const levelConfig = this.readOpenParams(params);
-    this.configureLevel(levelConfig);
-    this.titleLabel!.string = `关卡 ${levelConfig.level}`;
-    const totalPieces = levelConfig.rows * levelConfig.columns;
+    const openParams = this.readOpenParams(params);
+    this._gameController = openParams.controller;
+    this.configureLevel(openParams.levelConfig);
+    this.titleLabel!.string = `关卡 ${openParams.levelConfig.level}`;
+    const totalPieces =
+      openParams.levelConfig.rows * openParams.levelConfig.columns;
     this.progressLabel!.string = `已连接 0 / ${totalPieces}`;
     this.feedbackLabel!.string = "拖动相邻图片，让正确边缘靠近";
     this.refreshTimerDisplay();
@@ -342,6 +337,7 @@ export class UIGamePanel extends UIBase {
     this.clearPieces();
     this._grid = null;
     this._levelConfig = null;
+    this._gameController = null;
     super.onClose();
   }
 
@@ -354,17 +350,21 @@ export class UIGamePanel extends UIBase {
     this.feedbackLabel!.string = message;
   }
 
-  /** 从 UIManager 打开参数中取得必填关卡配置，缺失时立即阻止错误界面运行。 */
-  private readOpenParams(params: unknown): PuzzleLevelConfig {
+  /** 从 UIManager 打开参数中取得必填配置和控制器。 */
+  private readOpenParams(params: unknown): UIGamePanelOpenParams {
     if (
       !params ||
       typeof params !== "object" ||
       !("levelConfig" in params) ||
-      !params.levelConfig
+      !params.levelConfig ||
+      !("controller" in params) ||
+      !(params.controller instanceof PuzzleGameController)
     ) {
-      throw new Error("打开 UIGamePanel 时必须传入 levelConfig。");
+      throw new Error(
+        "打开 UIGamePanel 时必须传入 levelConfig 和 PuzzleGameController。",
+      );
     }
-    return params.levelConfig as PuzzleLevelConfig;
+    return params as UIGamePanelOpenParams;
   }
 
   /** 根据当前关卡配置准备切片尺寸和网格规则。 */
@@ -394,6 +394,14 @@ export class UIGamePanel extends UIBase {
       throw new Error("UIGamePanel 当前没有有效的关卡配置。");
     }
     return this._levelConfig;
+  }
+
+  /** 返回场景传入的唯一玩法控制器。 */
+  private get gameController(): PuzzleGameController {
+    if (!this._gameController) {
+      throw new Error("UIGamePanel 当前没有有效的拼图控制器。");
+    }
+    return this._gameController;
   }
 
   /** 返回当前关卡网格；未初始化时立即报错。 */
@@ -454,7 +462,7 @@ export class UIGamePanel extends UIBase {
         return;
       }
 
-      this.levelConfig.pieceOrder.forEach((pieceId, displayIndex) => {
+      this.gameController.pieceIdsByCell.forEach((pieceId, displayIndex) => {
         const pieceNode = instantiate(this.piecePrefab!);
         const piece = pieceNode.getComponent(PuzzlePiece);
         if (!piece) {
@@ -472,12 +480,10 @@ export class UIGamePanel extends UIBase {
           onDrop: this.onPieceDrop,
         });
         this._pieces.set(pieceId, { piece });
-        this._pieceIdsByCell[displayIndex] = pieceId;
-        this._cellIndexByPieceId.set(pieceId, displayIndex);
       });
       this.feedbackLabel!.string = "拖动图片到目标格，与格内图片交换位置";
       this.startLevelTimer();
-      this.refreshConnectedState(true);
+      this.renderBoardUpdate(this.gameController.currentBoardUpdate, false);
     } catch (error) {
       if (!this.node.isValid || requestId !== this._levelRequestId) {
         return;
@@ -745,18 +751,13 @@ export class UIGamePanel extends UIBase {
       return;
     }
 
-    const connectedPieceIds = this.connectOneAdjacentPair();
-    if (!connectedPieceIds) {
+    const update = this.connectOneAdjacentPair();
+    if (!update) {
       this.feedbackLabel!.string = "当前没有可自动组合的拼图";
       return;
     }
 
     this.feedbackLabel!.string = "已自动组合 1 块";
-    const request: PuzzlePieceDropRequest = {
-      connectedPieceIds,
-      fromAutoMergeTool: true,
-    };
-    EventCenter.emit(GameEvent.PuzzlePieceDropRequest, request);
   };
 
   /**
@@ -765,8 +766,10 @@ export class UIGamePanel extends UIBase {
    * 道具不直接修改节点坐标，而是先计算移动块在目标块旁边应占用的格子，再走
    * 普通交换函数，确保自动操作与玩家拖拽只有一套格子占用状态。
    */
-  private connectOneAdjacentPair(): number[] | null {
-    const pieceIds = Array.from(this._pieces.keys()).sort((a, b) => a - b);
+  private connectOneAdjacentPair(): PuzzleBoardUpdate | null {
+    const pieceIds = [...this.gameController.pieceIdsByCell].sort(
+      (first, second) => first - second,
+    );
     for (const movingId of pieceIds) {
       for (const targetId of pieceIds) {
         if (
@@ -776,21 +779,15 @@ export class UIGamePanel extends UIBase {
           continue;
         }
 
-        const movingCellIndex = this._cellIndexByPieceId.get(movingId);
-        const targetCellIndex = this._cellIndexByPieceId.get(targetId);
-        if (movingCellIndex === undefined || targetCellIndex === undefined) {
-          continue;
-        }
-        if ((this._groupManager.getGroupByPieceId(movingId)?.size ?? 0) > 1) {
+        const movingCellIndex =
+          this.gameController.getCellIndexByPieceId(movingId);
+        const targetCellIndex =
+          this.gameController.getCellIndexByPieceId(targetId);
+        if ((this.gameController.getGroupByPieceId(movingId)?.size ?? 0) > 1) {
           continue;
         }
         if (
-          this.isCorrectlyConnected(
-            movingId,
-            movingCellIndex,
-            targetId,
-            targetCellIndex,
-          )
+          this.gameController.arePiecesCorrectlyConnected(movingId, targetId)
         ) {
           continue;
         }
@@ -813,16 +810,23 @@ export class UIGamePanel extends UIBase {
         if (desiredCellIndex === null) {
           continue;
         }
-        const displacedPieceId = this._pieceIdsByCell[desiredCellIndex];
+        const displacedPieceId =
+          this.gameController.getPieceIdAt(desiredCellIndex);
         if (
-          (this._groupManager.getGroupByPieceId(displacedPieceId)?.size ?? 0) >
-          1
+          (this.gameController.getGroupByPieceId(displacedPieceId)?.size ??
+            0) > 1
         ) {
           continue;
         }
 
-        this.swapPieceToCell(movingId, desiredCellIndex);
-        return this.refreshConnectedState(false, true);
+        const update = this.commitMovePlan(
+          this.gameController.createMovePlan(movingId, desiredCellIndex),
+        );
+        if (!update) {
+          return null;
+        }
+        this.renderBoardUpdate(update, true);
+        return update;
       }
     }
     return null;
@@ -864,7 +868,7 @@ export class UIGamePanel extends UIBase {
     ) {
       return false;
     }
-    const group = this._groupManager.getGroupByPieceId(pieceId);
+    const group = this.gameController.getGroupByPieceId(pieceId);
     if (!group) {
       return false;
     }
@@ -877,10 +881,10 @@ export class UIGamePanel extends UIBase {
     }> = [];
     draggingPieceIds.forEach((id) => {
       const runtime = this._pieces.get(id);
-      const cellIndex = this._cellIndexByPieceId.get(id);
-      if (!runtime || cellIndex === undefined) {
+      if (!runtime) {
         throw new Error(`拖拽组合缺少拼图 ${id} 的运行状态。`);
       }
+      const cellIndex = this.gameController.getCellIndexByPieceId(id);
       dragEntries.push({ id, runtime, cellIndex });
     });
     if (this.activePieceContainer!.children.length !== 0) {
@@ -900,13 +904,13 @@ export class UIGamePanel extends UIBase {
       runtime.piece.node.setParent(this.activePieceContainer!, true);
     });
     this.groupBorderRenderer.renderRestingGroups(
-      this._groupManager.groups,
-      this._cellIndexByPieceId,
+      this.gameController.groups,
+      this.gameController.cellIndexByPieceId,
       group.id,
     );
     this.groupBorderRenderer.renderActiveGroup(
       group,
-      this._cellIndexByPieceId,
+      this.gameController.cellIndexByPieceId,
     );
     return true;
   };
@@ -988,9 +992,13 @@ export class UIGamePanel extends UIBase {
     }
 
     this.releaseDraggingPiecesToBoard();
-    this.commitMovePlan(plan);
+    const update = this.commitMovePlan(plan);
     this.clearDraggingState();
-    const connectedPieceIds = this.refreshConnectedState(true, true);
+    if (!update) {
+      this.feedbackLabel!.string = "当前关卡已结束，本次操作未生效";
+      return;
+    }
+    const connectedPieceIds = this.renderBoardUpdate(update, true);
     // 完成事件会同步写入最终提示，不能再被本次普通落点反馈覆盖。
     if (!this._completed) {
       this.feedbackLabel!.string =
@@ -1010,16 +1018,10 @@ export class UIGamePanel extends UIBase {
     anchorPieceId: number,
     targetAnchorCellIndex: number,
   ): PuzzleMovePlan {
-    return PuzzleMovePlanner.createPlan({
-      rows: this.levelConfig.rows,
-      columns: this.levelConfig.columns,
-      pieceIdsByCell: this._pieceIdsByCell,
-      movingPieceIds: this._draggingPieceIds ?? new Set<number>(),
-      sourceCellByPieceId: this._dragOriginCells,
-      groupByPieceId: this._groupManager.groupByPieceId,
+    return this.gameController.createMovePlan(
       anchorPieceId,
       targetAnchorCellIndex,
-    });
+    );
   }
 
   /**
@@ -1028,61 +1030,35 @@ export class UIGamePanel extends UIBase {
    * 提交前再次核对来源、目标和反向索引；任何状态不一致都会在写入前抛错，避免
    * 快速触摸或后续代码改动造成半组已移动、半组仍在原位。
    */
-  private commitMovePlan(plan: PuzzleMovePlan): void {
+  private commitMovePlan(plan: PuzzleMovePlan): PuzzleBoardUpdate | null {
     if (!plan.valid) {
       throw new Error("不能提交无效的拼图移动计划。");
     }
 
-    const sourceCells = new Set<number>();
-    const targetCells = new Set<number>();
-    const nextPieceIdsByCell = [...this._pieceIdsByCell];
     for (const move of plan.moves) {
       const runtime = this._pieces.get(move.pieceId);
       if (
         !runtime ||
-        this._pieceIdsByCell[move.sourceCellIndex] !== move.pieceId ||
-        this._cellIndexByPieceId.get(move.pieceId) !== move.sourceCellIndex ||
-        move.targetCellIndex < 0 ||
-        move.targetCellIndex >= this._pieceIdsByCell.length ||
-        sourceCells.has(move.sourceCellIndex) ||
-        targetCells.has(move.targetCellIndex)
+        this.gameController.getPieceIdAt(move.sourceCellIndex) !==
+          move.pieceId
       ) {
         throw new Error(
-          `拼图移动计划与当前占用不一致：piece=${move.pieceId}，` +
-            `source=${move.sourceCellIndex}，target=${move.targetCellIndex}`,
+          `拼图移动计划与界面实例不一致：piece=${move.pieceId}，` +
+            `source=${move.sourceCellIndex}`,
         );
       }
-      sourceCells.add(move.sourceCellIndex);
-      targetCells.add(move.targetCellIndex);
-    }
-    if (
-      sourceCells.size !== targetCells.size ||
-      Array.from(sourceCells).some((cellIndex) => !targetCells.has(cellIndex))
-    ) {
-      throw new Error("拼图移动计划没有完整覆盖全部腾出格和目标格。");
     }
 
-    for (const move of plan.moves) {
-      nextPieceIdsByCell[move.targetCellIndex] = move.pieceId;
+    const update = this.gameController.commitMovePlan(plan);
+    if (!update) {
+      return null;
     }
-    if (
-      new Set(nextPieceIdsByCell).size !== nextPieceIdsByCell.length ||
-      nextPieceIdsByCell.some((pieceId) => !this._pieces.has(pieceId))
-    ) {
-      throw new Error("拼图移动计划提交后会产生重复格子或丢失拼图。");
-    }
-
-    this._pieceIdsByCell.splice(
-      0,
-      this._pieceIdsByCell.length,
-      ...nextPieceIdsByCell,
-    );
     for (const move of plan.moves) {
-      this._cellIndexByPieceId.set(move.pieceId, move.targetCellIndex);
       this._pieces
         .get(move.pieceId)!
         .piece.node.setPosition(this.getGridPosition(move.targetCellIndex));
     }
+    return update;
   }
 
   /** 将移动规划失败原因转换为玩家可理解、可排错的放置反馈。 */
@@ -1119,8 +1095,8 @@ export class UIGamePanel extends UIBase {
       );
     });
     this.groupBorderRenderer.renderRestingGroups(
-      this._groupManager.groups,
-      this._cellIndexByPieceId,
+      this.gameController.groups,
+      this.gameController.cellIndexByPieceId,
     );
   }
 
@@ -1188,13 +1164,13 @@ export class UIGamePanel extends UIBase {
     });
 
     this.groupBorderRenderer.renderRestingGroups(
-      this._groupManager.groups,
-      this._cellIndexByPieceId,
+      this.gameController.groups,
+      this.gameController.cellIndexByPieceId,
       group.id,
     );
     this.groupBorderRenderer.renderActiveGroup(
       group,
-      this._cellIndexByPieceId,
+      this.gameController.cellIndexByPieceId,
       { x: -center.x, y: -center.y },
     );
 
@@ -1235,10 +1211,10 @@ export class UIGamePanel extends UIBase {
     this.activeGroupRoot!.setScale(1, 1, 1);
     this._animatingPieceIds.forEach((pieceId) => {
       const runtime = this._pieces.get(pieceId);
-      const cellIndex = this._cellIndexByPieceId.get(pieceId);
-      if (!runtime?.piece.node.isValid || cellIndex === undefined) {
+      if (!runtime?.piece.node.isValid) {
         return;
       }
+      const cellIndex = this.gameController.getCellIndexByPieceId(pieceId);
       runtime.piece.node.setParent(this.puzzleContainer!, true);
       runtime.piece.node.setPosition(this.getGridPosition(cellIndex));
     });
@@ -1248,8 +1224,8 @@ export class UIGamePanel extends UIBase {
     this.groupBorderRenderer.clearActiveGroup();
     if (renderBorders && this._levelConfig && this._grid) {
       this.groupBorderRenderer.renderRestingGroups(
-        this._groupManager.groups,
-        this._cellIndexByPieceId,
+        this.gameController.groups,
+        this.gameController.cellIndexByPieceId,
       );
     }
   }
@@ -1261,10 +1237,7 @@ export class UIGamePanel extends UIBase {
     let minimumY = Number.POSITIVE_INFINITY;
     let maximumY = Number.NEGATIVE_INFINITY;
     group.pieceIds.forEach((pieceId) => {
-      const cellIndex = this._cellIndexByPieceId.get(pieceId);
-      if (cellIndex === undefined) {
-        throw new Error(`组合 ${group.id} 缺少拼图 ${pieceId} 的格子位置。`);
-      }
+      const cellIndex = this.gameController.getCellIndexByPieceId(pieceId);
       const position = this.getGridPosition(cellIndex);
       minimumX = Math.min(minimumX, position.x);
       maximumX = Math.max(maximumX, position.x);
@@ -1282,33 +1255,6 @@ export class UIGamePanel extends UIBase {
   private resetActiveGroupRoot(): void {
     this.activeGroupRoot!.setPosition(0, 0, 0);
     this.activeGroupRoot!.setScale(1, 1, 1);
-  }
-
-  /**
-   * 将指定拼图交换到目标格，并让被占用的拼图回到来源格。
-   *
-   * 所有映射与节点位置在同一个函数内更新，防止快速连续拖动时出现两个拼图
-   * 指向同一格，或逻辑占用位置与画面位置不一致。
-   */
-  private swapPieceToCell(pieceId: number, targetCellIndex: number): void {
-    const sourceCellIndex = this._cellIndexByPieceId.get(pieceId);
-    const targetPieceId = this._pieceIdsByCell[targetCellIndex];
-    if (sourceCellIndex === undefined || targetPieceId === undefined) {
-      throw new Error(
-        `拼图格子占用状态异常：piece=${pieceId}，target=${targetCellIndex}`,
-      );
-    }
-
-    this._pieceIdsByCell[sourceCellIndex] = targetPieceId;
-    this._pieceIdsByCell[targetCellIndex] = pieceId;
-    this._cellIndexByPieceId.set(pieceId, targetCellIndex);
-    this._cellIndexByPieceId.set(targetPieceId, sourceCellIndex);
-    this._pieces
-      .get(pieceId)!
-      .piece.node.setPosition(this.getGridPosition(targetCellIndex));
-    this._pieces
-      .get(targetPieceId)!
-      .piece.node.setPosition(this.getGridPosition(sourceCellIndex));
   }
 
   /** 根据拖拽节点中心取得最近格子；超出棋盘半格范围时判定为无效落点。 */
@@ -1337,84 +1283,21 @@ export class UIGamePanel extends UIBase {
     return row * this.levelConfig.columns + column;
   }
 
-  /** 判断两块图片在当前格子中的方向是否与它们在原图中的方向完全一致。 */
-  private isCorrectlyConnected(
-    firstPieceId: number,
-    firstCellIndex: number,
-    secondPieceId: number,
-    secondCellIndex: number,
-  ): boolean {
-    const firstOriginal = this.grid.getCell(firstPieceId);
-    const secondOriginal = this.grid.getCell(secondPieceId);
-    const firstCurrent = this.grid.getCell(firstCellIndex);
-    const secondCurrent = this.grid.getCell(secondCellIndex);
-    return (
-      secondOriginal.row - firstOriginal.row ===
-        secondCurrent.row - firstCurrent.row &&
-      secondOriginal.column - firstOriginal.column ===
-        secondCurrent.column - firstCurrent.column
-    );
-  }
-
-  /**
-   * 重算当前棋盘上的正确连接组合，并同步组合外轮廓。
-   *
-   * 界面层只负责收集右侧和下侧的正确连接边；真实组合的遍历、对象复用、反向
-   * 索引和原子替换由 PuzzleGroupManager 完成，避免进度、拖拽与边框各存一套状态。
-   */
-  private refreshConnectedState(
-    emitState: boolean,
-    playConnectedAnimation = false,
+  /** 根据规则棋盘的唯一结果刷新组合边框、动画和界面进度。 */
+  private renderBoardUpdate(
+    update: PuzzleBoardUpdate,
+    playConnectedAnimation: boolean,
   ): number[] {
-    const connections: PuzzleGroupConnection[] = [];
-
-    this._pieceIdsByCell.forEach((pieceId, cellIndex) => {
-      const cell = this.grid.getCell(cellIndex);
-      const neighborIndices = [
-        this.getCellIndex(cell.row, cell.column + 1),
-        this.getCellIndex(cell.row + 1, cell.column),
-      ];
-      neighborIndices.forEach((neighborIndex) => {
-        if (neighborIndex === null) {
-          return;
-        }
-        const neighborPieceId = this._pieceIdsByCell[neighborIndex];
-        if (
-          this.isCorrectlyConnected(
-            pieceId,
-            cellIndex,
-            neighborPieceId,
-            neighborIndex,
-          )
-        ) {
-          connections.push({
-            firstPieceId: pieceId,
-            secondPieceId: neighborPieceId,
-          });
-        }
-      });
-    });
-
-    const rebuildResult = this._groupManager.rebuild(
-      this._pieces.keys(),
-      connections,
-    );
     this.groupBorderRenderer.renderRestingGroups(
-      rebuildResult.groups,
-      this._cellIndexByPieceId,
+      update.groups,
+      this.gameController.cellIndexByPieceId,
     );
 
-    const reportedPieceIds = rebuildResult.largestConnectedGroup
-      ? Array.from(rebuildResult.largestConnectedGroup.pieceIds)
+    const reportedPieceIds = update.largestConnectedGroup
+      ? Array.from(update.largestConnectedGroup.pieceIds)
       : [];
-    if (emitState) {
-      const request: PuzzlePieceDropRequest = {
-        connectedPieceIds: reportedPieceIds,
-      };
-      EventCenter.emit(GameEvent.PuzzlePieceDropRequest, request);
-    }
-    if (playConnectedAnimation && rebuildResult.expandedGroups.length > 0) {
-      const animationGroup = [...rebuildResult.expandedGroups].sort(
+    if (playConnectedAnimation && update.expandedGroups.length > 0) {
+      const animationGroup = [...update.expandedGroups].sort(
         (first, second) => second.size - first.size || first.id - second.id,
       )[0];
       this.playConnectedGroupAnimation(animationGroup);
@@ -1511,15 +1394,12 @@ export class UIGamePanel extends UIBase {
     EventCenter.off(GameEvent.PuzzleRestart, this.onRestartRequested, this);
   }
 
-  /** 销毁上一轮实例和运行时切片，并清空格子占用关系。 */
+  /** 销毁上一轮界面实例和运行时切片；棋盘占用由控制器独立管理。 */
   private clearPieces(): void {
     this.finishConnectedGroupAnimation(true, false);
     Tween.stopAllByTarget(this.activeGroupRoot!);
     this._pieces.forEach((runtime) => runtime.piece.node.destroy());
     this._pieces.clear();
-    this._pieceIdsByCell.length = 0;
-    this._cellIndexByPieceId.clear();
-    this._groupManager.clear();
     this.groupBorderRenderer.clear();
     this.resetActiveGroupRoot();
     this.clearDraggingState();

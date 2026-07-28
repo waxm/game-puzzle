@@ -13,9 +13,6 @@ export enum GameEvent {
   /** 携带目标关卡编号开始游戏。 */
   GameStart = "GameStart",
 
-  /** 拼图组合发生正确吸附后，请求控制器记录已连接拼图。 */
-  PuzzlePieceDropRequest = "PuzzlePieceDropRequest",
-
   /** 拼图状态变化。 */
   PuzzleStateChanged = "PuzzleStateChanged",
 

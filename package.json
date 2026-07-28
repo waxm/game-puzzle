@@ -11,6 +11,7 @@
         "validate:levels": "node tools/generate-puzzle-level-configs.mjs --check",
         "editor:levels": "node tools/puzzle-level-editor/server.mjs",
         "verify:level-editor": "node tools/puzzle-level-editor/server.mjs --check && node --test tools/puzzle-level-editor/server.test.mjs",
+        "verify:puzzle-rules": "node tools/verify-puzzle-rules.mjs",
         "verify:puzzle-drag": "node tools/verify-puzzle-drag.mjs",
         "verify:puzzle-groups": "node tools/verify-puzzle-groups.mjs",
         "configure:scenes": "node tools/configure-scene-bindings.mjs",
@@ -19,7 +20,7 @@
         "generate:load-error-prefab": "node tools/create-load-error-prefab.mjs",
         "validate:cocos": "node tools/validate-cocos-assets.mjs",
         "verify": "npm run typecheck && npm run verify:cocos-web && npm run verify:core && npm run verify:game && npm run validate:cocos",
-        "verify:game": "npm run verify:puzzle-progress && npm run validate:levels && npm run verify:level-editor && npm run verify:puzzle-groups && npm run verify:puzzle-drag"
+        "verify:game": "npm run verify:puzzle-progress && npm run validate:levels && npm run verify:level-editor && npm run verify:puzzle-groups && npm run verify:puzzle-drag && npm run verify:puzzle-rules"
     },
     "creator": {
         "version": "3.8.4"

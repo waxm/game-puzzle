@@ -129,7 +129,7 @@ export class GameScene extends SceneBase {
         this._nextLevelPreparing = false;
         PuzzleLevelSession.cancelPendingSelection();
         this._controller?.destroy();
-        this._controller = null;
+        this._controller = new PuzzleGameController(levelConfig);
         this._levelConfig = levelConfig;
         UIManager.close("UIGamePanel", true);
         UIManager.close("UIResultPanel", true);
@@ -140,13 +140,18 @@ export class GameScene extends SceneBase {
     /** UI 完成加载和事件绑定后再启动控制器，避免丢失初始状态事件。 */
     private async openGamePanel(levelConfig: PuzzleLevelConfig): Promise<void> {
         const requestId = ++this._panelRequestId;
-        const params: UIGamePanelOpenParams = { levelConfig };
+        const controller = this._controller;
+        if (!controller) {
+            throw new Error("打开拼图主面板前必须创建关卡控制器。");
+        }
+        const params: UIGamePanelOpenParams = { levelConfig, controller };
         const result = await UIManager.open<UIGamePanel>("UIGamePanel", params);
 
         if (
             !this.node.isValid ||
             requestId !== this._panelRequestId ||
-            this._levelConfig?.level !== levelConfig.level
+            this._levelConfig?.level !== levelConfig.level ||
+            this._controller !== controller
         ) {
             this.disposeStalePanel("UIGamePanel", result.panel);
             return;
@@ -177,8 +182,7 @@ export class GameScene extends SceneBase {
             return;
         }
 
-        this._controller = new PuzzleGameController(levelConfig);
-        this._controller.start();
+        controller.start();
     }
 
     /** 控制器确认失败后打开当前关卡的失败结算弹窗。 */

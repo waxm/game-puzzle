@@ -1,0 +1,520 @@
+{
+  "schemaVersion": 1,
+  "module": {
+    "id": "puzzle-core",
+    "title": "光影拼图核心玩法",
+    "kind": "gameplay",
+    "phase": "contracted"
+  },
+  "capabilities": {
+    "ui": true,
+    "api": false,
+    "list": false,
+    "persistence": true,
+    "analytics": false,
+    "time": true
+  },
+  "sources": [
+    {
+      "id": "user-optimization-request",
+      "kind": "requirement",
+      "status": "approved",
+      "location": "conversation://2026-07-28/puzzle-core-sequential-optimization"
+    },
+    {
+      "id": "project-rules",
+      "kind": "project",
+      "status": "approved",
+      "location": "AGENTS.md"
+    },
+    {
+      "id": "existing-gameplay",
+      "kind": "project",
+      "status": "read",
+      "location": "assets/app/game"
+    },
+    {
+      "id": "existing-game-ui",
+      "kind": "design",
+      "status": "read",
+      "location": "assets/resources/prefabs/game/UIGamePanel.prefab"
+    },
+    {
+      "id": "core-audit",
+      "kind": "other",
+      "status": "read",
+      "location": "docs/PUZZLE_CORE_OPTIMIZATION.md"
+    }
+  ],
+  "project": {
+    "creatorVersion": "3.8.4",
+    "designResolution": {
+      "width": 640,
+      "height": 1136
+    },
+    "orientation": "portrait"
+  },
+  "scope": {
+    "included": [
+      "拼图棋盘占用、正确连接、组合、进度和胜负规则",
+      "玩家拖拽与自动组合道具共用的移动规划",
+      "运行、暂停、成功、失败、重开和销毁状态",
+      "玩法计时器、输入、拼图节点和资源生命周期",
+      "纯规则、控制器和完整玩法回归测试"
+    ],
+    "excluded": [
+      "重新设计大厅、游戏面板或结算弹窗视觉",
+      "改变现有关卡图片、行列数、限时和解锁顺序",
+      "迁移现有业务目录或修改稳定资源 UUID",
+      "新增后端接口、商业化消耗或道具库存"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "domain-authority",
+      "confidence": "confirmed",
+      "impact": "structure",
+      "statement": "棋盘占用、连接进度和胜负由纯规则域维护，View 只提交输入和渲染结果。",
+      "sources": [
+        "user-optimization-request",
+        "project-rules",
+        "core-audit"
+      ]
+    },
+    {
+      "id": "shared-move-rules",
+      "confidence": "confirmed",
+      "impact": "behavior",
+      "statement": "玩家拖拽和自动组合必须使用同一移动规划与原子提交规则。",
+      "sources": [
+        "user-optimization-request",
+        "project-rules",
+        "core-audit"
+      ]
+    },
+    {
+      "id": "explicit-lifecycle-state",
+      "confidence": "confirmed",
+      "impact": "behavior",
+      "statement": "玩法使用 idle、running、paused、success、failure、disposed 显式状态并覆盖前后台切换。",
+      "sources": [
+        "user-optimization-request",
+        "project-rules"
+      ]
+    },
+    {
+      "id": "preserve-ui-assets",
+      "confidence": "inferred",
+      "impact": "structure",
+      "statement": "本轮不修改 Prefab 和 Scene 结构，保留全部 Inspector 绑定与资源 UUID。",
+      "reason": "审计问题均可在规则、控制器、View 生命周期和测试层解决。",
+      "sources": [
+        "existing-game-ui",
+        "project-rules"
+      ]
+    }
+  ],
+  "openQuestions": [],
+  "states": [
+    "idle",
+    "running",
+    "paused",
+    "success",
+    "failure",
+    "disposed"
+  ],
+  "transitions": [
+    {
+      "event": "start-or-restart",
+      "from": "idle",
+      "to": "running",
+      "authority": "PuzzleGameController"
+    },
+    {
+      "event": "pause",
+      "from": "running",
+      "to": "paused",
+      "authority": "PuzzleGameController"
+    },
+    {
+      "event": "resume",
+      "from": "paused",
+      "to": "running",
+      "authority": "PuzzleGameController"
+    },
+    {
+      "event": "complete",
+      "from": "running",
+      "to": "success",
+      "authority": "PuzzleBoard"
+    },
+    {
+      "event": "expire",
+      "from": "running",
+      "to": "failure",
+      "authority": "PuzzleGameController"
+    },
+    {
+      "event": "restart-after-success",
+      "from": "success",
+      "to": "running",
+      "authority": "PuzzleGameController"
+    },
+    {
+      "event": "restart-after-failure",
+      "from": "failure",
+      "to": "running",
+      "authority": "PuzzleGameController"
+    },
+    {
+      "event": "dispose-from-running",
+      "from": "running",
+      "to": "disposed",
+      "authority": "GameScene"
+    },
+    {
+      "event": "dispose-from-paused",
+      "from": "paused",
+      "to": "disposed",
+      "authority": "GameScene"
+    }
+  ],
+  "architecture": {
+    "artifacts": [
+      {
+        "id": "puzzle-board",
+        "role": "domain",
+        "responsibility": "维护棋盘排列、组合连接、移动提交、进度和完成判定。"
+      },
+      {
+        "id": "puzzle-move-planner",
+        "role": "domain",
+        "responsibility": "在不修改输入状态的前提下生成完整、确定的棋盘移动计划。"
+      },
+      {
+        "id": "puzzle-controller",
+        "role": "controller",
+        "responsibility": "编排状态机、棋盘规则、计时失败和业务事件。"
+      },
+      {
+        "id": "puzzle-state",
+        "role": "model",
+        "responsibility": "定义对外只读的玩法运行状态。"
+      },
+      {
+        "id": "puzzle-level-config",
+        "role": "config",
+        "responsibility": "提供经过运行时校验的关卡尺寸、顺序、资源和限时配置。"
+      },
+      {
+        "id": "puzzle-game-view",
+        "role": "view",
+        "responsibility": "渲染棋盘、组合轮廓、计时和道具状态，并转发玩家输入。"
+      },
+      {
+        "id": "puzzle-piece-view",
+        "role": "view",
+        "responsibility": "显示单块拼图并采集唯一触摸输入。"
+      }
+    ]
+  },
+  "interfaces": [],
+  "ui": {
+    "screens": [
+      {
+        "id": "puzzle-game-screen",
+        "kind": "panel",
+        "prefab": "assets/resources/prefabs/game/UIGamePanel.prefab"
+      }
+    ],
+    "lists": [],
+    "bindings": [
+      {
+        "name": "puzzleContainer",
+        "component": "Node",
+        "owner": "puzzle-game-view",
+        "classification": "dynamic",
+        "source": "PuzzleBoard.pieceIdsByCell",
+        "required": true,
+        "reason": "棋盘节点由当前关卡规则排列驱动。"
+      },
+      {
+        "name": "progressLabel",
+        "component": "Label",
+        "owner": "puzzle-game-view",
+        "classification": "dynamic",
+        "source": "PuzzleGameState.placedCount",
+        "required": true,
+        "reason": "连接进度随棋盘规则结果变化。"
+      },
+      {
+        "name": "timerLabel",
+        "component": "Label",
+        "owner": "puzzle-game-view",
+        "classification": "dynamic",
+        "source": "UIGamePanel.remainingTime",
+        "required": true,
+        "reason": "剩余时间随运行和暂停状态变化。"
+      },
+      {
+        "name": "toolButtons",
+        "component": "Button",
+        "owner": "puzzle-game-view",
+        "classification": "interactive",
+        "source": "PuzzleGameState.status",
+        "required": true,
+        "reason": "道具只允许在 running 状态且无拖拽动画时使用。"
+      }
+    ],
+    "actions": [
+      {
+        "id": "drag-piece-group",
+        "owner": "puzzle-game-view",
+        "trigger": "PuzzlePiece drag",
+        "handler": "PuzzleGameController.createMovePlan/commitMovePlan"
+      },
+      {
+        "id": "use-auto-merge",
+        "owner": "puzzle-game-view",
+        "trigger": "AutoMerge button click",
+        "handler": "PuzzleGameController.createAutoMergePlan"
+      },
+      {
+        "id": "restart-level",
+        "owner": "puzzle-game-view",
+        "trigger": "Restart button click",
+        "handler": "GameEvent.PuzzleRestart"
+      },
+      {
+        "id": "back-to-lobby",
+        "owner": "puzzle-game-view",
+        "trigger": "Back button click",
+        "handler": "GameEvent.BackToLobby"
+      }
+    ],
+    "visualStates": [
+      {
+        "id": "preview",
+        "owner": "puzzle-game-view",
+        "description": "显示完整原图并锁定拼图输入。"
+      },
+      {
+        "id": "playing",
+        "owner": "puzzle-game-view",
+        "description": "显示可操作棋盘、进度、时间和道具。"
+      },
+      {
+        "id": "paused",
+        "owner": "puzzle-game-view",
+        "description": "停止计时和输入，恢复时仅延续暂停前仍运行的关卡。"
+      },
+      {
+        "id": "finished",
+        "owner": "puzzle-game-view",
+        "description": "成功或失败后锁定棋盘并由结算弹窗阻断操作。"
+      }
+    ]
+  },
+  "acceptance": {
+    "cases": [
+      {
+        "id": "board-authoritative-completion",
+        "title": "只有规则域确认完整棋盘时才能通关",
+        "status": "passed",
+        "sources": [
+          "user-optimization-request",
+          "project-rules"
+        ]
+      },
+      {
+        "id": "drag-boundaries",
+        "title": "单块与组合拖拽保持排列完整且不越界",
+        "status": "passed",
+        "sources": [
+          "existing-gameplay",
+          "project-rules"
+        ]
+      },
+      {
+        "id": "auto-merge-all-levels",
+        "title": "自动组合在全部关卡中每次严格推进且不会提前停滞",
+        "status": "pending",
+        "sources": [
+          "user-optimization-request",
+          "core-audit"
+        ]
+      },
+      {
+        "id": "pause-resume",
+        "title": "暂停期间不计时不响应输入且恢复条件正确",
+        "status": "pending",
+        "sources": [
+          "project-rules"
+        ]
+      },
+      {
+        "id": "success-lock",
+        "title": "成功后重复输入不会再次结算或改变进度",
+        "status": "pending",
+        "sources": [
+          "project-rules"
+        ]
+      },
+      {
+        "id": "failure-lock",
+        "title": "失败后重复输入不会修改棋盘或存档",
+        "status": "pending",
+        "sources": [
+          "project-rules"
+        ]
+      },
+      {
+        "id": "restart-idempotent",
+        "title": "重复重开恢复初始状态且不重复注册事件",
+        "status": "pending",
+        "sources": [
+          "project-rules"
+        ]
+      },
+      {
+        "id": "dispose-cleanup",
+        "title": "退出后事件、计时器、拼图节点、对象池借出节点和资源回到基线",
+        "status": "pending",
+        "sources": [
+          "project-rules"
+        ]
+      },
+      {
+        "id": "main-scene-flow",
+        "title": "Boot 到 Lobby 到 Game 再返回 Lobby 的实际流程无红错",
+        "status": "pending",
+        "sources": [
+          "project-rules",
+          "existing-game-ui"
+        ]
+      }
+    ],
+    "gates": [
+      {
+        "id": "contract",
+        "status": "passed"
+      },
+      {
+        "id": "static",
+        "status": "passed"
+      },
+      {
+        "id": "creator-import",
+        "status": "pending"
+      },
+      {
+        "id": "visual",
+        "status": "pending"
+      },
+      {
+        "id": "functional-smoke",
+        "status": "passed"
+      },
+      {
+        "id": "functional",
+        "status": "pending"
+      },
+      {
+        "id": "api",
+        "status": "passed"
+      },
+      {
+        "id": "lifecycle",
+        "status": "pending"
+      },
+      {
+        "id": "regression",
+        "status": "pending"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "gate": "contract",
+      "type": "manual",
+      "result": "用户确认按审计顺序优化，范围、四阶段目标和项目约束已经统一。",
+      "reference": "conversation://2026-07-28/puzzle-core-sequential-optimization"
+    },
+    {
+      "gate": "api",
+      "type": "manual",
+      "result": "核心拼图模块不依赖远端接口。",
+      "reference": "tools/cocos-modules/puzzle-core/module-contract.json"
+    },
+    {
+      "gate": "static",
+      "type": "automation",
+      "result": "TypeScript 严格检查、Web 兼容检查、核心框架检查和 Cocos 静态资源绑定检查全部通过。",
+      "reference": "npm run verify"
+    },
+    {
+      "gate": "functional-smoke",
+      "type": "automation",
+      "result": "PuzzleBoard 的 6 个规则用例与既有拖拽、组合、进度和 90 关配置回归全部通过。",
+      "reference": "tools/verify-puzzle-rules.mjs"
+    }
+  ],
+  "deliverables": [
+    {
+      "kind": "contract",
+      "path": "tools/cocos-modules/puzzle-core/module-contract.json",
+      "requiredFor": [
+        "contract",
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "record",
+      "path": "docs/PUZZLE_CORE_OPTIMIZATION.md",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "domain",
+      "path": "assets/app/game/logic/PuzzleBoard.ts",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "controller",
+      "path": "assets/app/game/controller/PuzzleGameController.ts",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "view",
+      "path": "assets/app/ui/game/UIGamePanel.ts",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "automation",
+      "path": "tools/verify-puzzle-rules.mjs",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "automation",
+      "path": "tools/verify-puzzle-controller.mjs",
+      "requiredFor": [
+        "test"
+      ]
+    }
+  ]
+}
