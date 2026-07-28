@@ -338,7 +338,7 @@
       {
         "id": "auto-merge-all-levels",
         "title": "自动组合在全部关卡中每次严格推进且不会提前停滞",
-        "status": "pending",
+        "status": "passed",
         "sources": [
           "user-optimization-request",
           "core-audit"
@@ -455,8 +455,14 @@
     {
       "gate": "functional-smoke",
       "type": "automation",
-      "result": "PuzzleBoard 的 6 个规则用例与既有拖拽、组合、进度和 90 关配置回归全部通过。",
+      "result": "PuzzleBoard 的 7 个规则用例与既有拖拽、组合、进度和 90 关配置回归全部通过。",
       "reference": "tools/verify-puzzle-rules.mjs"
+    },
+    {
+      "gate": "functional-smoke",
+      "type": "automation",
+      "result": "全部 90 关共 426 次自动组合均严格推进并最终还原，9×9 关未发生停滞。",
+      "reference": "npm run verify:puzzle-rules"
     }
   ],
   "deliverables": [

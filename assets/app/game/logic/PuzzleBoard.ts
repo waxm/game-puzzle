@@ -1,12 +1,14 @@
 import {
   PuzzleMoveFailureReason,
-  PuzzleMovePlan,
   PuzzleMovePlanner,
 } from "./PuzzleMovePlanner";
+import type { PuzzleMovePlan } from "./PuzzleMovePlanner";
 import {
+  PuzzleGroupManager,
+} from "../model/PuzzleGroup";
+import type {
   PuzzleGroup,
   PuzzleGroupConnection,
-  PuzzleGroupManager,
 } from "../model/PuzzleGroup";
 
 /** 棋盘规则变化后提供给控制器和表现层的只读结果。 */
@@ -166,6 +168,48 @@ export class PuzzleBoard {
   }
 
   /**
+   * 生成并提交一次必定推进最大正确组合的自动操作。
+   *
+   * 先把当前最大组合对齐到原图绝对位置，再吸收一个原图相邻的外部组合。两个步骤
+   * 都复用玩家拖拽的移动规划器；正式棋盘提交前会在副本中完整演算，确保本次使用
+   * 后最大组合严格增长且不会留下只完成一半的准备动作。
+   */
+  public autoMerge(): PuzzleBoardUpdate | null {
+    if (this._lastUpdate.completed) {
+      return null;
+    }
+
+    const initialPlacedCount = this._lastUpdate.placedCount;
+    const simulation = new PuzzleBoard(
+      this.rows,
+      this.columns,
+      this._pieceIdsByCell,
+    );
+    const plans = simulation.createAndApplyAutoMergePlans();
+    if (
+      plans.length === 0 ||
+      simulation.currentUpdate.placedCount <= initialPlacedCount
+    ) {
+      throw new Error("自动组合没有严格推进最大正确组合。");
+    }
+
+    plans.forEach((plan) => {
+      this.commitMovePlan(plan);
+    });
+    if (
+      this._lastUpdate.placedCount !==
+        simulation.currentUpdate.placedCount ||
+      this._pieceIdsByCell.some(
+        (pieceId, cellIndex) =>
+          pieceId !== simulation.pieceIdsByCell[cellIndex],
+      )
+    ) {
+      throw new Error("自动组合正式提交结果与预演结果不一致。");
+    }
+    return this._lastUpdate;
+  }
+
+  /**
    * 原子提交经过规划器校验的完整移动。
    *
    * 提交前重新核对全部来源、目标和双射关系，避免旧计划或重复输入覆盖新棋盘。
@@ -304,6 +348,83 @@ export class PuzzleBoard {
       placedCount,
       completed,
     };
+  }
+
+  /** 在预演棋盘上生成并立即应用本次自动组合所需的一到两个普通移动计划。 */
+  private createAndApplyAutoMergePlans(): PuzzleMovePlan[] {
+    const plans: PuzzleMovePlan[] = [];
+    const initialPlacedCount = this._lastUpdate.placedCount;
+    const anchorGroup =
+      this._lastUpdate.largestConnectedGroup ??
+      this._groupManager.getGroupByPieceId(0);
+    if (!anchorGroup) {
+      throw new Error("自动组合找不到可作为基准的拼图组合。");
+    }
+
+    const anchorPieceId = Math.min(...anchorGroup.pieceIds);
+    if (this.getCellIndexByPieceId(anchorPieceId) !== anchorPieceId) {
+      this.applyRequiredAutoPlan(
+        this.createMovePlan(anchorPieceId, anchorPieceId),
+        plans,
+      );
+    }
+
+    if (this._lastUpdate.placedCount > initialPlacedCount) {
+      return plans;
+    }
+
+    const alignedAnchorGroup =
+      this._groupManager.getGroupByPieceId(anchorPieceId);
+    if (!alignedAnchorGroup || alignedAnchorGroup.size === this.totalCount) {
+      return plans;
+    }
+    const neighborPieceId =
+      this.findExternalOriginalNeighbor(alignedAnchorGroup);
+    this.applyRequiredAutoPlan(
+      this.createMovePlan(neighborPieceId, neighborPieceId),
+      plans,
+    );
+    return plans;
+  }
+
+  /** 提交自动组合所需的普通计划；任何规划失败都立即终止正式棋盘写入。 */
+  private applyRequiredAutoPlan(
+    plan: PuzzleMovePlan,
+    plans: PuzzleMovePlan[],
+  ): void {
+    if (!plan.valid) {
+      throw new Error(`自动组合移动规划失败：${plan.reason}`);
+    }
+    this.commitMovePlan(plan);
+    plans.push(plan);
+  }
+
+  /**
+   * 查找基准组合在完整原图中的一个外部相邻拼图。
+   *
+   * 完整拼图网格是连通图，只要组合尚未覆盖全部拼图，就必然存在至少一条跨组合
+   * 边。按成员编号及上、右、下、左顺序扫描可保证所有平台得到相同选择。
+   */
+  private findExternalOriginalNeighbor(group: PuzzleGroup): number {
+    const orderedPieceIds = Array.from(group.pieceIds).sort(
+      (first, second) => first - second,
+    );
+    for (const pieceId of orderedPieceIds) {
+      const row = Math.floor(pieceId / this.columns);
+      const column = pieceId % this.columns;
+      const neighborPieceIds = [
+        row > 0 ? pieceId - this.columns : null,
+        column + 1 < this.columns ? pieceId + 1 : null,
+        row + 1 < this.rows ? pieceId + this.columns : null,
+        column > 0 ? pieceId - 1 : null,
+      ];
+      for (const neighborPieceId of neighborPieceIds) {
+        if (neighborPieceId !== null && !group.has(neighborPieceId)) {
+          return neighborPieceId;
+        }
+      }
+    }
+    throw new Error(`拼图组合 ${group.id} 尚未完成但不存在外部相邻拼图。`);
   }
 
   /** 使用原图行列差和当前行列差判断一条连接边。 */

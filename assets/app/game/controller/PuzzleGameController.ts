@@ -115,6 +115,19 @@ export class PuzzleGameController {
     return update;
   }
 
+  /** 自动完成一次严格推进的正确组合，并复用普通移动规划和棋盘提交规则。 */
+  public autoMerge(): PuzzleBoardUpdate | null {
+    if (this._state.completed || this._state.failed) {
+      return null;
+    }
+    const update = this._board.autoMerge();
+    if (!update) {
+      return null;
+    }
+    this.applyBoardUpdate(update);
+    return update;
+  }
+
   /** 注销关卡业务事件；允许重复调用。 */
   private unbindEvents(): void {
     if (!this._eventsBound) {

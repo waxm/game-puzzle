@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { compileAppFilesForTest } from "./testing/compile-core-for-test.mjs";
@@ -127,7 +128,72 @@ try {
     assert.deepEqual([...board.pieceIdsByCell], initialOrder);
   });
 
-  console.log(`拼图棋盘规则验证通过：${passedCount} 个用例。`);
+  let autoMergeUseCount = 0;
+  test("全部 90 关自动组合每次严格推进并最终完整还原", () => {
+    const levelConfigDirectory = path.join(
+      projectRoot,
+      "assets/resources/configs/game/levels",
+    );
+    const configFiles = fs
+      .readdirSync(levelConfigDirectory)
+      .filter((fileName) => /^level_\d{3}\.json$/.test(fileName))
+      .sort();
+    assert.equal(configFiles.length, 90);
+
+    configFiles.forEach((fileName) => {
+      const config = JSON.parse(
+        fs.readFileSync(path.join(levelConfigDirectory, fileName), "utf8"),
+      );
+      const board = new PuzzleBoard(
+        config.rows,
+        config.columns,
+        config.pieceOrder,
+      );
+      let previousPlacedCount = board.currentUpdate.placedCount;
+      let levelUseCount = 0;
+
+      while (!board.currentUpdate.completed) {
+        const update = board.autoMerge();
+        assert.ok(update, `${fileName} 在完成前没有返回自动组合结果。`);
+        assert.ok(
+          update.placedCount > previousPlacedCount,
+          `${fileName} 第 ${levelUseCount + 1} 次自动组合没有严格推进。`,
+        );
+        assert.deepEqual(
+          [...board.pieceIdsByCell].sort(
+            (first, second) => first - second,
+          ),
+          Array.from(
+            { length: board.totalCount },
+            (_value, index) => index,
+          ),
+          `${fileName} 自动组合破坏了棋盘完整排列。`,
+        );
+        previousPlacedCount = update.placedCount;
+        levelUseCount += 1;
+        autoMergeUseCount += 1;
+        assert.ok(
+          levelUseCount < board.totalCount,
+          `${fileName} 自动组合次数超过了严格增长上限。`,
+        );
+      }
+
+      assert.deepEqual(
+        [...board.pieceIdsByCell],
+        Array.from(
+          { length: board.totalCount },
+          (_value, index) => index,
+        ),
+        `${fileName} 完成时没有还原为唯一正确排列。`,
+      );
+      assert.equal(board.autoMerge(), null);
+    });
+  });
+
+  console.log(
+    `拼图棋盘规则验证通过：${passedCount} 个用例，` +
+      `${autoMergeUseCount} 次自动组合覆盖全部 90 关。`,
+  );
 } finally {
   compiledApp.cleanup();
 }

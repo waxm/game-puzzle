@@ -751,86 +751,22 @@ export class UIGamePanel extends UIBase {
       return;
     }
 
-    const update = this.connectOneAdjacentPair();
+    const update = this.gameController.autoMerge();
     if (!update) {
       this.feedbackLabel!.string = "当前没有可自动组合的拼图";
       return;
     }
 
-    this.feedbackLabel!.string = "已自动组合 1 块";
-  };
-
-  /**
-   * 按拼图编号顺序寻找一对尚未正确相邻的原图邻块，并交换一个目标格。
-   *
-   * 道具不直接修改节点坐标，而是先计算移动块在目标块旁边应占用的格子，再走
-   * 普通交换函数，确保自动操作与玩家拖拽只有一套格子占用状态。
-   */
-  private connectOneAdjacentPair(): PuzzleBoardUpdate | null {
-    const pieceIds = [...this.gameController.pieceIdsByCell].sort(
-      (first, second) => first - second,
-    );
-    for (const movingId of pieceIds) {
-      for (const targetId of pieceIds) {
-        if (
-          movingId >= targetId ||
-          !this.grid.areAdjacent(movingId, targetId)
-        ) {
-          continue;
-        }
-
-        const movingCellIndex =
-          this.gameController.getCellIndexByPieceId(movingId);
-        const targetCellIndex =
-          this.gameController.getCellIndexByPieceId(targetId);
-        if ((this.gameController.getGroupByPieceId(movingId)?.size ?? 0) > 1) {
-          continue;
-        }
-        if (
-          this.gameController.arePiecesCorrectlyConnected(movingId, targetId)
-        ) {
-          continue;
-        }
-
-        const movingOriginalCell = this.grid.getCell(movingId);
-        const targetOriginalCell = this.grid.getCell(targetId);
-        const targetDisplayCell = this.grid.getCell(targetCellIndex);
-        const desiredRow =
-          targetDisplayCell.row +
-          movingOriginalCell.row -
-          targetOriginalCell.row;
-        const desiredColumn =
-          targetDisplayCell.column +
-          movingOriginalCell.column -
-          targetOriginalCell.column;
-        const desiredCellIndex = this.getCellIndex(
-          desiredRow,
-          desiredColumn,
-        );
-        if (desiredCellIndex === null) {
-          continue;
-        }
-        const displacedPieceId =
-          this.gameController.getPieceIdAt(desiredCellIndex);
-        if (
-          (this.gameController.getGroupByPieceId(displacedPieceId)?.size ??
-            0) > 1
-        ) {
-          continue;
-        }
-
-        const update = this.commitMovePlan(
-          this.gameController.createMovePlan(movingId, desiredCellIndex),
-        );
-        if (!update) {
-          return null;
-        }
-        this.renderBoardUpdate(update, true);
-        return update;
-      }
+    this.gameController.pieceIdsByCell.forEach((pieceId, cellIndex) => {
+      this._pieces
+        .get(pieceId)!
+        .piece.node.setPosition(this.getGridPosition(cellIndex));
+    });
+    this.renderBoardUpdate(update, true);
+    if (!this._completed) {
+      this.feedbackLabel!.string = "已自动完成 1 次正确组合";
     }
-    return null;
-  }
+  };
 
   /**
    * 根据格子序号生成无间隙的规则网格中心坐标。
