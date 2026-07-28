@@ -7,7 +7,7 @@ GameEvent.ts                              # 拼图与场景、UI 的事件协议
 config/PuzzleLevelConfig.ts               # 关卡 JSON 类型和轻量目录出口
 config/PuzzleLevelConfigLoader.ts         # 通过 ResManager 加载并严格校验单关 JSON
 config/PuzzleLevelCatalog.generated.ts    # 根据关卡 JSON 和图片生成轻量索引
-controller/PuzzleGameController.ts        # 单关进度、完成和失败状态
+controller/PuzzleGameController.ts        # 单关显式状态机、棋盘编排和结算
 logic/PuzzleGrid.ts                       # 规则网格和坐标关系
 logic/PuzzleImageSlicer.ts                # 完整原图运行时切分
 logic/PuzzleBoard.ts                      # 棋盘占用、组合、进度和完成规则真相

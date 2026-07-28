@@ -26,13 +26,10 @@ import { GameEvent } from "../../game/GameEvent";
 import type { PuzzleBoardUpdate } from "../../game/logic/PuzzleBoard";
 import { PuzzleGrid } from "../../game/logic/PuzzleGrid";
 import { PuzzleImageSlicer } from "../../game/logic/PuzzleImageSlicer";
-import {
-  PuzzleMoveFailureReason,
-} from "../../game/logic/PuzzleMovePlanner";
+import { PuzzleMoveFailureReason } from "../../game/logic/PuzzleMovePlanner";
 import type { PuzzleMovePlan } from "../../game/logic/PuzzleMovePlanner";
-import {
-  PuzzleGameState,
-} from "../../game/model/PuzzleGameState";
+import { PuzzleGameStatus } from "../../game/model/PuzzleGameState";
+import type { PuzzleGameState } from "../../game/model/PuzzleGameState";
 import type { PuzzleGroup } from "../../game/model/PuzzleGroup";
 import { PuzzleGroupBorderRenderer } from "./PuzzleGroupBorderRenderer";
 import { PuzzlePiece } from "./PuzzlePiece";
@@ -208,11 +205,8 @@ export class UIGamePanel extends UIBase {
   /** 当前关卡的规则网格，统一处理上下左右邻接关系。 */
   private _grid: PuzzleGrid | null = null;
 
-  /** 当前关卡是否已完成。 */
-  private _completed = false;
-
-  /** 当前关卡是否已经超时失败。 */
-  private _failed = false;
+  /** 控制器派发的当前显式玩法状态，所有输入和计时均以它为准。 */
+  private _gameStatus = PuzzleGameStatus.Idle;
 
   /** 当前限时关卡剩余的秒数；不限时关卡固定保留为 0。 */
   private _remainingTime = 0;
@@ -313,8 +307,7 @@ export class UIGamePanel extends UIBase {
   protected update(deltaTime: number): void {
     if (
       !this._timerRunning ||
-      this._completed ||
-      this._failed ||
+      this._gameStatus !== PuzzleGameStatus.Running ||
       this.levelConfig.timeLimitSeconds === null
     ) {
       return;
@@ -338,6 +331,7 @@ export class UIGamePanel extends UIBase {
     this._grid = null;
     this._levelConfig = null;
     this._gameController = null;
+    this._gameStatus = PuzzleGameStatus.Idle;
     super.onClose();
   }
 
@@ -426,8 +420,7 @@ export class UIGamePanel extends UIBase {
     this.cancelSourcePreviewWait();
     this.hideSourcePreview();
     this.clearPieces();
-    this._completed = false;
-    this._failed = false;
+    this._gameStatus = this.gameController.status;
     this._toolPreviewRunning = false;
     this.resetLevelTimer();
 
@@ -640,7 +633,8 @@ export class UIGamePanel extends UIBase {
 
   /** 原图预览结束且拼图创建完成后开始关卡计时。 */
   private startLevelTimer(): void {
-    this._timerRunning = true;
+    this._timerRunning =
+      this._gameStatus === PuzzleGameStatus.Running;
     this._remainingTime = this.levelConfig.timeLimitSeconds ?? 0;
     this.refreshTimerDisplay();
   }
@@ -666,11 +660,13 @@ export class UIGamePanel extends UIBase {
 
   /** 时间归零后锁定所有拼图，并请求控制器确认失败状态。 */
   private expireLevel(): void {
-    if (!this._timerRunning || this._completed || this._failed) {
+    if (
+      !this._timerRunning ||
+      this._gameStatus !== PuzzleGameStatus.Running
+    ) {
       return;
     }
     this._timerRunning = false;
-    this._failed = true;
     if (this._groupAnimationRunning) {
       this.finishConnectedGroupAnimation(true, true);
     }
@@ -686,8 +682,7 @@ export class UIGamePanel extends UIBase {
     const totalPieces = this.levelConfig.rows * this.levelConfig.columns;
     return (
       this._timerRunning &&
-      !this._completed &&
-      !this._failed &&
+      this._gameStatus === PuzzleGameStatus.Running &&
       !this._toolPreviewRunning &&
       !this._groupAnimationRunning &&
       this._activeDragAnchorPieceId === null &&
@@ -733,8 +728,7 @@ export class UIGamePanel extends UIBase {
     if (
       !this.node.isValid ||
       requestId !== this._levelRequestId ||
-      this._completed ||
-      this._failed
+      this._gameStatus !== PuzzleGameStatus.Running
     ) {
       return;
     }
@@ -763,7 +757,7 @@ export class UIGamePanel extends UIBase {
         .piece.node.setPosition(this.getGridPosition(cellIndex));
     });
     this.renderBoardUpdate(update, true);
-    if (!this._completed) {
+    if (this._gameStatus === PuzzleGameStatus.Running) {
       this.feedbackLabel!.string = "已自动完成 1 次正确组合";
     }
   };
@@ -796,8 +790,7 @@ export class UIGamePanel extends UIBase {
   ): boolean => {
     if (
       !this._timerRunning ||
-      this._completed ||
-      this._failed ||
+      this._gameStatus !== PuzzleGameStatus.Running ||
       this._toolPreviewRunning ||
       this._groupAnimationRunning ||
       this._activeDragAnchorPieceId !== null
@@ -856,7 +849,7 @@ export class UIGamePanel extends UIBase {
     pieceId: number,
     currentPosition: Readonly<Vec3>,
   ): void => {
-    if (this._completed || this._failed) {
+    if (this._gameStatus !== PuzzleGameStatus.Running) {
       return;
     }
     if (
@@ -884,7 +877,7 @@ export class UIGamePanel extends UIBase {
    * 保持整体形状。移动计划通过边界和占用校验后，才一次性提交全部格子变化。
    */
   private onPieceDrop = (pieceId: number, canceled: boolean): void => {
-    if (this._completed || this._failed) {
+    if (this._gameStatus !== PuzzleGameStatus.Running) {
       return;
     }
     if (this._activeDragAnchorPieceId !== pieceId) {
@@ -936,7 +929,7 @@ export class UIGamePanel extends UIBase {
     }
     const connectedPieceIds = this.renderBoardUpdate(update, true);
     // 完成事件会同步写入最终提示，不能再被本次普通落点反馈覆盖。
-    if (!this._completed) {
+    if (this._gameStatus === PuzzleGameStatus.Running) {
       this.feedbackLabel!.string =
         connectedPieceIds.length >= 2
           ? `已连接 ${connectedPieceIds.length} 块`
@@ -1241,17 +1234,56 @@ export class UIGamePanel extends UIBase {
     return reportedPieceIds;
   }
 
-  /** 刷新已连接数量和关卡锁定状态。 */
+  /** 刷新已连接数量，并让计时、预览和输入服从控制器显式状态。 */
   private onStateChanged = (state?: PuzzleGameState): void => {
     if (!state) {
       return;
     }
-    this._completed = state.completed;
-    this._failed = state.failed;
-    if (state.completed || state.failed) {
+    this._gameStatus = state.status;
+    this.progressLabel!.string =
+      `已连接 ${state.placedCount} / ${state.totalCount}`;
+
+    if (state.status === PuzzleGameStatus.Paused) {
       this.stopLevelTimer();
+      if (this._sourcePreviewTimerId !== null) {
+        TimerManager.pause(this._sourcePreviewTimerId);
+      }
+      if (this._groupAnimationRunning) {
+        this.finishConnectedGroupAnimation(true, true);
+      }
+      this.restoreDraggingGroup();
+      this.clearDraggingState();
+      this._pieces.forEach((runtime) => {
+        runtime.piece.setInteractable(false);
+      });
+      this.feedbackLabel!.string = "游戏已暂停";
+      return;
     }
-    this.progressLabel!.string = `已连接 ${state.placedCount} / ${state.totalCount}`;
+
+    if (state.status === PuzzleGameStatus.Running) {
+      if (this._sourcePreviewTimerId !== null) {
+        TimerManager.resume(this._sourcePreviewTimerId);
+      }
+      const totalPieces =
+        this.levelConfig.rows * this.levelConfig.columns;
+      if (
+        this._pieces.size === totalPieces &&
+        !this.sourcePreviewNode!.active &&
+        !this._toolPreviewRunning
+      ) {
+        this._timerRunning = true;
+        this._pieces.forEach((runtime) => {
+          runtime.piece.setInteractable(true);
+        });
+        this.feedbackLabel!.string = "继续拖动相邻图片完成拼接";
+      }
+      return;
+    }
+
+    this.stopLevelTimer();
+    this._pieces.forEach((runtime) => {
+      runtime.piece.setInteractable(false);
+    });
   };
 
   /** 通关后保持完整图片位于规则棋盘，并锁定全部拖拽输入。 */

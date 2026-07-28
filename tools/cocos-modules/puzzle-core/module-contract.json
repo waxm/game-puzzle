@@ -347,7 +347,7 @@
       {
         "id": "pause-resume",
         "title": "暂停期间不计时不响应输入且恢复条件正确",
-        "status": "pending",
+        "status": "passed",
         "sources": [
           "project-rules"
         ]
@@ -355,7 +355,7 @@
       {
         "id": "success-lock",
         "title": "成功后重复输入不会再次结算或改变进度",
-        "status": "pending",
+        "status": "passed",
         "sources": [
           "project-rules"
         ]
@@ -363,7 +363,7 @@
       {
         "id": "failure-lock",
         "title": "失败后重复输入不会修改棋盘或存档",
-        "status": "pending",
+        "status": "passed",
         "sources": [
           "project-rules"
         ]
@@ -371,7 +371,7 @@
       {
         "id": "restart-idempotent",
         "title": "重复重开恢复初始状态且不重复注册事件",
-        "status": "pending",
+        "status": "passed",
         "sources": [
           "project-rules"
         ]
@@ -463,6 +463,12 @@
       "type": "automation",
       "result": "全部 90 关共 426 次自动组合均严格推进并最终还原，9×9 关未发生停滞。",
       "reference": "npm run verify:puzzle-rules"
+    },
+    {
+      "gate": "functional-smoke",
+      "type": "automation",
+      "result": "6 个控制器用例覆盖开始、暂停恢复、成功、失败、重开、重复输入和销毁状态边界。",
+      "reference": "npm run verify:puzzle-controller"
     }
   ],
   "deliverables": [

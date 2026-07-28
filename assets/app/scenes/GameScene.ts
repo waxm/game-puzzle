@@ -1,4 +1,4 @@
-import { _decorator, Node } from "cc";
+import { _decorator, Game, game, Node } from "cc";
 import { AudioManager } from "../core/audio/AudioManager";
 import { EventCenter } from "../core/event/EventCenter";
 import { SceneBase } from "../core/scene/SceneBase";
@@ -63,6 +63,9 @@ export class GameScene extends SceneBase {
     /** 是否正在返回大厅，防止按钮重复发起场景切换。 */
     private _sceneTransitioning = false;
 
+    /** 进入后台时确实由场景暂停的控制器；回前台只恢复同一个实例。 */
+    private _applicationPausedController: PuzzleGameController | null = null;
+
     /** 进入场景时注册界面并打开当前拼图关卡。 */
     protected onEnter(): void {
         super.onEnter();
@@ -87,6 +90,8 @@ export class GameScene extends SceneBase {
         EventCenter.on(GameEvent.PuzzleCompleted, this.onPuzzleCompleted, this);
         EventCenter.on(GameEvent.PuzzleRestart, this.onPuzzleRestart, this);
         EventCenter.on(GameEvent.PuzzleNextLevel, this.onPuzzleNextLevel, this);
+        game.on(Game.EVENT_HIDE, this.onApplicationHide, this);
+        game.on(Game.EVENT_SHOW, this.onApplicationShow, this);
     }
 
     /** 注销场景级事件。 */
@@ -96,6 +101,8 @@ export class GameScene extends SceneBase {
         EventCenter.off(GameEvent.PuzzleCompleted, this.onPuzzleCompleted, this);
         EventCenter.off(GameEvent.PuzzleRestart, this.onPuzzleRestart, this);
         EventCenter.off(GameEvent.PuzzleNextLevel, this.onPuzzleNextLevel, this);
+        game.off(Game.EVENT_HIDE, this.onApplicationHide, this);
+        game.off(Game.EVENT_SHOW, this.onApplicationShow, this);
     }
 
     /** 注册游戏主面板、结算弹窗和通用加载失败弹窗。 */
@@ -128,6 +135,7 @@ export class GameScene extends SceneBase {
         this._nextLevelRequestId += 1;
         this._nextLevelPreparing = false;
         PuzzleLevelSession.cancelPendingSelection();
+        this._applicationPausedController = null;
         this._controller?.destroy();
         this._controller = new PuzzleGameController(levelConfig);
         this._levelConfig = levelConfig;
@@ -275,6 +283,22 @@ export class GameScene extends SceneBase {
         PuzzleLevelSession.cancelPendingSelection();
         UIManager.close("UIResultPanel", true);
         UIManager.close("UILoadErrorPanel", true);
+    };
+
+    /** 应用进入后台时仅暂停当前仍在运行的关卡，并记住本次暂停归属。 */
+    private onApplicationHide = (): void => {
+        const controller = this._controller;
+        this._applicationPausedController =
+            controller?.pause() === true ? controller : null;
+    };
+
+    /** 应用回到前台时只恢复本次后台切换实际暂停的同一关卡实例。 */
+    private onApplicationShow = (): void => {
+        const controller = this._applicationPausedController;
+        this._applicationPausedController = null;
+        if (controller && controller === this._controller) {
+            controller.resume();
+        }
     };
 
     /** 请求异步准备下一关；加载期间忽略重复点击。 */
@@ -457,6 +481,7 @@ export class GameScene extends SceneBase {
         this._nextLevelRequestId += 1;
         this._nextLevelPreparing = false;
         PuzzleLevelSession.cancelPendingSelection();
+        this._applicationPausedController = null;
         this._controller?.destroy();
         this._controller = null;
         this._levelConfig = null;

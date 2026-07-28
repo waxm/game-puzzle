@@ -5,6 +5,9 @@ import { GameEvent } from "../GameEvent";
 import { PuzzleBoard } from "../logic/PuzzleBoard";
 import type { PuzzleBoardUpdate } from "../logic/PuzzleBoard";
 import type { PuzzleMovePlan } from "../logic/PuzzleMovePlanner";
+import {
+  PuzzleGameStatus,
+} from "../model/PuzzleGameState";
 import type { PuzzleGameState } from "../model/PuzzleGameState";
 import type { PuzzleGroup } from "../model/PuzzleGroup";
 
@@ -13,8 +16,11 @@ export class PuzzleGameController {
   /** 当前关卡的拼图总数，由行列数计算，避免配置重复。 */
   private readonly _totalPieces: number;
 
-  /** 当前关卡状态。 */
-  private _state: PuzzleGameState;
+  /** 当前关卡显式生命周期状态。 */
+  private _status = PuzzleGameStatus.Idle;
+
+  /** 当前由规则棋盘确认的显示进度。 */
+  private _placedCount: number;
 
   /** 当前关卡唯一的棋盘规则真相。 */
   private readonly _board: PuzzleBoard;
@@ -30,7 +36,7 @@ export class PuzzleGameController {
       _levelConfig.columns,
       _levelConfig.pieceOrder,
     );
-    this._state = this.createInitialState(this._board.currentUpdate);
+    this._placedCount = this._board.currentUpdate.placedCount;
   }
 
   /** 返回当前格子占用的只读规则视图。 */
@@ -53,8 +59,16 @@ export class PuzzleGameController {
     return this._board.currentUpdate;
   }
 
-  /** 启动关卡并派发初始状态。 */
+  /** 返回当前显式生命周期状态。 */
+  public get status(): PuzzleGameStatus {
+    return this._status;
+  }
+
+  /** 启动关卡并派发初始状态；重复启动不会重置正在运行的棋盘。 */
   public start(): void {
+    if (this._status !== PuzzleGameStatus.Idle) {
+      return;
+    }
     this.bindEvents();
     this.restart();
     Logger.info(
@@ -62,9 +76,34 @@ export class PuzzleGameController {
     );
   }
 
-  /** 销毁控制器并注销事件。 */
+  /** 销毁控制器并注销事件；销毁状态不可再启动或重开。 */
   public destroy(): void {
+    if (this._status === PuzzleGameStatus.Disposed) {
+      return;
+    }
     this.unbindEvents();
+    this._status = PuzzleGameStatus.Disposed;
+    this.emitStateChanged();
+  }
+
+  /** 仅把正在运行的关卡切换到暂停状态。 */
+  public pause(): boolean {
+    if (this._status !== PuzzleGameStatus.Running) {
+      return false;
+    }
+    this._status = PuzzleGameStatus.Paused;
+    this.emitStateChanged();
+    return true;
+  }
+
+  /** 仅恢复此前处于暂停状态的关卡。 */
+  public resume(): boolean {
+    if (this._status !== PuzzleGameStatus.Paused) {
+      return false;
+    }
+    this._status = PuzzleGameStatus.Running;
+    this.emitStateChanged();
+    return true;
   }
 
   /** 返回指定拼图当前所在格子。 */
@@ -107,7 +146,7 @@ export class PuzzleGameController {
    * 成功或失败后返回 null，保证旧输入不能继续改变棋盘和结算结果。
    */
   public commitMovePlan(plan: PuzzleMovePlan): PuzzleBoardUpdate | null {
-    if (this._state.completed || this._state.failed) {
+    if (this._status !== PuzzleGameStatus.Running) {
       return null;
     }
     const update = this._board.commitMovePlan(plan);
@@ -117,7 +156,7 @@ export class PuzzleGameController {
 
   /** 自动完成一次严格推进的正确组合，并复用普通移动规划和棋盘提交规则。 */
   public autoMerge(): PuzzleBoardUpdate | null {
-    if (this._state.completed || this._state.failed) {
+    if (this._status !== PuzzleGameStatus.Running) {
       return null;
     }
     const update = this._board.autoMerge();
@@ -143,23 +182,30 @@ export class PuzzleGameController {
   }
 
   /** 响应 UI 的重玩请求。 */
-  private onRestartRequest = (): void => this.restart();
+  private onRestartRequest = (): void => {
+    this.restart();
+  };
 
   /** 时间耗尽时锁定本关状态并通知场景打开失败弹窗。 */
   private onTimeExpiredRequest = (): void => {
-    if (this._state.completed || this._state.failed) {
+    if (this._status !== PuzzleGameStatus.Running) {
       return;
     }
-    this._state.failed = true;
-    EventCenter.emit(GameEvent.PuzzleStateChanged, this.getState());
+    this._status = PuzzleGameStatus.Failure;
+    this.emitStateChanged();
     EventCenter.emit(GameEvent.PuzzleFailed, this.getState());
   };
 
-  /** 清空完成记录并恢复初始状态。 */
-  private restart(): void {
+  /** 清空完成记录并恢复运行状态；销毁后拒绝重新激活。 */
+  public restart(): boolean {
+    if (this._status === PuzzleGameStatus.Disposed) {
+      return false;
+    }
     const update = this._board.reset(this._levelConfig.pieceOrder);
-    this._state = this.createInitialState(update);
-    EventCenter.emit(GameEvent.PuzzleStateChanged, this.getState());
+    this._placedCount = update.placedCount;
+    this._status = PuzzleGameStatus.Running;
+    this.emitStateChanged();
+    return true;
   }
 
   /** 注册关卡业务事件。 */
@@ -176,29 +222,32 @@ export class PuzzleGameController {
     );
   }
 
-  /** 创建与当前规则棋盘一致的全新运行状态。 */
-  private createInitialState(update: PuzzleBoardUpdate): PuzzleGameState {
-    return {
-      level: this._levelConfig.level,
-      placedCount: update.placedCount,
-      totalCount: this._totalPieces,
-      completed: update.completed,
-      failed: false,
-    };
-  }
-
   /** 把棋盘规则结果同步到状态并派发唯一的进度与通关事件。 */
   private applyBoardUpdate(update: PuzzleBoardUpdate): void {
-    this._state.placedCount = update.placedCount;
-    this._state.completed = update.completed;
-    EventCenter.emit(GameEvent.PuzzleStateChanged, this.getState());
+    this._placedCount = update.placedCount;
+    if (update.completed) {
+      this._status = PuzzleGameStatus.Success;
+    }
+    this.emitStateChanged();
     if (update.completed) {
       EventCenter.emit(GameEvent.PuzzleCompleted, this.getState());
     }
   }
 
-  /** 返回状态副本，防止 UI 意外修改控制器内部数据。 */
-  private getState(): PuzzleGameState {
-    return { ...this._state };
+  /** 派发一份只读状态快照，防止界面修改控制器内部字段。 */
+  private emitStateChanged(): void {
+    EventCenter.emit(GameEvent.PuzzleStateChanged, this.getState());
+  }
+
+  /** 返回当前状态快照，供场景、界面和自动化验证读取。 */
+  public getState(): PuzzleGameState {
+    return {
+      status: this._status,
+      level: this._levelConfig.level,
+      placedCount: this._placedCount,
+      totalCount: this._totalPieces,
+      completed: this._status === PuzzleGameStatus.Success,
+      failed: this._status === PuzzleGameStatus.Failure,
+    };
   }
 }
