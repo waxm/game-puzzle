@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    ".cocos-workflow.json",
+    ".cocos-workflow.local.example.json",
+    ".githooks/commit-msg",
+    "extensions/cocos-workflow-bridge/extension-logger.js",
+    "extensions/cocos-workflow-bridge/main.js",
+    "extensions/cocos-workflow-bridge/package.json",
+    "extensions/cocos-workflow-bridge/scene.js",
+    "extensions/cocos-workflow-bridge/validation-state.js",
+    "tools/cocos-workflow/component-rules/3.8.4.json",
+    "tools/cocos-workflow/doctor.mjs",
+    "tools/cocos-workflow/editor-log.mjs",
+    "tools/cocos-workflow/lib.mjs",
+    "tools/cocos-workflow/platform/darwin.mjs",
+    "tools/cocos-workflow/platform/index.mjs",
+    "tools/cocos-workflow/platform/linux.mjs",
+    "tools/cocos-workflow/platform/posix.mjs",
+    "tools/cocos-workflow/platform/win32.mjs",
+    "tools/cocos-workflow/preview-session.mjs",
+    "tools/cocos-workflow/session.mjs",
+    "tools/cocos-workflow/setup.mjs",
+    "tools/cocos-workflow/validate-components.mjs",
+    "tools/cocos-workflow/verify-changed.mjs",
+    "tools/cocos-workflow/verify-commit-message.mjs",
+    "tools/cocos-workflow/verify-module.mjs",
+    "tools/cocos-workflow/verify-portable.mjs",
+    "tools/cocos-workflow/verify-workflow.mjs"
+  ]
+}

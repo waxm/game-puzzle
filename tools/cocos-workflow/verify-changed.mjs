@@ -10,7 +10,7 @@ import {
   runPackageScript,
 } from "./lib.mjs";
 
-/** 返回当前提交边界内修改和新增的文件。 */
+/** 返回当前提交边界内修改、新增、删除和重命名的文件。 */
 function collectChangedFiles() {
   const hasHead =
     runCommand("git", ["rev-parse", "--verify", "HEAD"], {
@@ -20,7 +20,6 @@ function collectChangedFiles() {
     ? runCommand("git", [
         "diff",
         "--name-only",
-        "--diff-filter=ACMR",
         "HEAD",
       ]).stdout.split("\n")
     : runCommand("git", ["ls-files"]).stdout.split("\n");

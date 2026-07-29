@@ -15,6 +15,12 @@ export const workflowConfigPath = path.join(
   ".cocos-workflow.json",
 );
 
+/** 不提交 Git 的本机工作流能力配置。 */
+export const workflowLocalConfigPath = path.join(
+  projectRoot,
+  ".cocos-workflow.local.json",
+);
+
 /** 工作流临时状态目录。 */
 export const workflowTempDirectory = path.join(
   projectRoot,
@@ -58,23 +64,133 @@ export function resolveProjectPath(relativePath) {
   return resolvedPath;
 }
 
+/** 校验本机能力配置，只允许覆盖不会放宽团队规则的字段。 */
+export function validateMachineConfig(
+  machine,
+  description = "machine",
+  allowPartial = false,
+) {
+  if (!machine || typeof machine !== "object" || Array.isArray(machine)) {
+    throw new Error(`${description} 必须是对象。`);
+  }
+  const allowedKeys = new Set([
+    "browserControl",
+    "portDiscovery",
+    "processDiscovery",
+  ]);
+  const unknownKeys = Object.keys(machine).filter(
+    (key) => !allowedKeys.has(key),
+  );
+  if (unknownKeys.length > 0) {
+    throw new Error(
+      `${description} 包含未知字段：${unknownKeys.join("、")}`,
+    );
+  }
+  for (const key of ["processDiscovery", "portDiscovery"]) {
+    if (
+      (!allowPartial || Object.hasOwn(machine, key)) &&
+      !["auto", "disabled"].includes(machine[key])
+    ) {
+      throw new Error(
+        `${description}.${key} 必须是 auto 或 disabled。`,
+      );
+    }
+  }
+  if (
+    (!allowPartial || Object.hasOwn(machine, "browserControl")) &&
+    !["available", "unavailable", "unknown"].includes(
+      machine.browserControl,
+    )
+  ) {
+    throw new Error(
+      `${description}.browserControl 必须是 available、unavailable 或 unknown。`,
+    );
+  }
+}
+
+/** 读取并校验仅包含机器能力的本机覆盖配置。 */
+function loadLocalWorkflowConfig() {
+  if (!fs.existsSync(workflowLocalConfigPath)) {
+    return null;
+  }
+  const localConfig = readJson(workflowLocalConfigPath);
+  if (localConfig.schemaVersion !== 1) {
+    throw new Error(
+      ".cocos-workflow.local.json 的 schemaVersion 必须为 1。",
+    );
+  }
+  const allowedKeys = new Set(["schemaVersion", "machine"]);
+  const unknownKeys = Object.keys(localConfig).filter(
+    (key) => !allowedKeys.has(key),
+  );
+  if (unknownKeys.length > 0) {
+    throw new Error(
+      `.cocos-workflow.local.json 只能包含 schemaVersion 和 machine，禁止覆盖团队规则：${unknownKeys.join("、")}`,
+    );
+  }
+  validateMachineConfig(
+    localConfig.machine,
+    ".cocos-workflow.local.json 的 machine",
+    true,
+  );
+  return localConfig;
+}
+
 /** 读取并校验跨电脑工作流配置。 */
 export function loadWorkflowConfig() {
   if (!fs.existsSync(workflowConfigPath)) {
     throw new Error("缺少 .cocos-workflow.json。");
   }
-  const config = readJson(workflowConfigPath);
-  if (config.schemaVersion !== 1) {
+  const baseConfig = readJson(workflowConfigPath);
+  if (baseConfig.schemaVersion !== 1) {
     throw new Error(
-      `不支持的工作流配置版本：${config.schemaVersion ?? "未填写"}`,
+      `不支持的工作流配置版本：${baseConfig.schemaVersion ?? "未填写"}`,
     );
   }
+  const localConfig = loadLocalWorkflowConfig();
+  const config = {
+    ...baseConfig,
+    machine: {
+      ...baseConfig.machine,
+      ...(localConfig?.machine ?? {}),
+    },
+  };
   if (config.creator?.launchPolicy !== "dashboard-only") {
     throw new Error("Creator 启动策略必须为 dashboard-only。");
+  }
+  if (config.creator?.reuseOpenedProject !== true) {
+    throw new Error("Creator 必须优先复用已打开的目标项目。");
+  }
+  if (
+    config.preview?.reuseExistingBrowserTab !== true ||
+    config.preview?.createTabOnlyWhenMissing !== true
+  ) {
+    throw new Error("浏览器预览必须优先复用现有标签。");
+  }
+  if (
+    config.preview?.browserControlRequirement !== "external-tool"
+  ) {
+    throw new Error("浏览器控制能力必须声明为 external-tool。");
+  }
+  if (
+    JSON.stringify(config.preview?.errorInspectionOrder) !==
+    JSON.stringify(["editor-log", "browser-console"])
+  ) {
+    throw new Error("错误检查顺序必须先编辑器日志、后浏览器 Console。");
+  }
+  if (config.preview?.screenshotPolicy !== "visual-only") {
+    throw new Error("截图策略必须为 visual-only。");
   }
   if (config.validation?.developmentBuildPolicy !== "explicit-only") {
     throw new Error("开发阶段构建策略必须为 explicit-only。");
   }
+  if (config.validation?.submissionValidationScript !== "verify") {
+    throw new Error("提交前完整验证脚本必须为 verify。");
+  }
+  if (config.validation?.failureReassessmentLimit !== 2) {
+    throw new Error("连续两次未改变首个错误后必须重新定位。");
+  }
+  validateMachineConfig(config.machine);
   for (const relativePath of [
     config.logs?.editor,
     config.logs?.programming,
@@ -96,6 +212,19 @@ export function runCommand(command, args, options = {}) {
     env: process.env,
   });
   if (result.error) {
+    if (options.allowFailure === true) {
+      return {
+        status: result.status ?? 1,
+        stdout: String(result.stdout ?? "").trim(),
+        stderr: String(
+          result.stderr ?? result.error.message ?? "",
+        ).trim(),
+        errorCode:
+          typeof result.error.code === "string"
+            ? result.error.code
+            : null,
+      };
+    }
     throw result.error;
   }
   if (result.status !== 0 && options.allowFailure !== true) {
@@ -108,6 +237,7 @@ export function runCommand(command, args, options = {}) {
     status: result.status ?? 1,
     stdout: String(result.stdout ?? "").trim(),
     stderr: String(result.stderr ?? "").trim(),
+    errorCode: null,
   };
 }
 

@@ -3,7 +3,15 @@
 const fs = require("fs");
 const path = require("path");
 
+const { createExtensionLogger } = require("./extension-logger");
 const packageJson = require("./package.json");
+const {
+  createValidationFailure,
+  createValidationState,
+} = require("./validation-state");
+
+/** Creator 扩展主进程日志适配器。 */
+const logger = createExtensionLogger();
 
 /** 扩展包名。 */
 const PACKAGE_NAME = packageJson.name;
@@ -22,6 +30,9 @@ let validationTimer = null;
 
 /** 上一次组件冲突签名，用于避免重复刷屏。 */
 let lastIssueSignature = "";
+
+/** 上一次组件校验异常签名，用于避免重复刷屏。 */
+let lastFailureSignature = "";
 
 /** 上一次活动场景组件校验结果。 */
 let lastValidation = null;
@@ -91,41 +102,50 @@ async function validateActiveScene() {
         args: [readComponentRules()],
       },
     );
-    lastValidation = {
-      checkedAt: new Date().toISOString(),
-      sceneName: result?.sceneName ?? "",
-      nodeCount: result?.nodeCount ?? 0,
-      issueCount: result?.issues?.length ?? 0,
-      firstIssue: result?.issues?.[0] ?? null,
-    };
+    lastValidation = createValidationState(result);
 
     const issueSignature = JSON.stringify(result?.issues ?? []);
-    if (result?.issues?.length > 0 && issueSignature !== lastIssueSignature) {
-      Editor.error(
-        `[${PACKAGE_NAME}] 发现 ${result.issues.length} 个组件挂载问题，首个问题：${result.issues[0]}`,
+    if (
+      lastValidation.status === "issues" &&
+      issueSignature !== lastIssueSignature
+    ) {
+      logger.error(
+        `[${PACKAGE_NAME}] 发现 ${lastValidation.issueCount} 个组件挂载问题，首个问题：${lastValidation.firstIssue}`,
       );
     } else if (
-      result?.issues?.length === 0 &&
+      lastValidation.status === "passed" &&
       lastIssueSignature &&
       lastIssueSignature !== "[]"
     ) {
-      Editor.log(`[${PACKAGE_NAME}] 当前场景组件挂载问题已消除。`);
+      logger.info(`[${PACKAGE_NAME}] 当前场景组件挂载问题已消除。`);
     }
     lastIssueSignature = issueSignature;
+    if (lastFailureSignature) {
+      logger.info(`[${PACKAGE_NAME}] 活动场景组件校验已恢复。`);
+      lastFailureSignature = "";
+    }
     writeSession(true);
     return result;
   } catch (error) {
-    // 没有打开场景或场景进程正在切换时属于正常状态，不输出重复警告。
-    lastValidation = {
-      checkedAt: new Date().toISOString(),
-      unavailable: true,
-    };
+    lastValidation = createValidationFailure(error);
+    const failureSignature = JSON.stringify([
+      lastValidation.errorCode,
+      lastValidation.errorMessage,
+    ]);
+    if (failureSignature !== lastFailureSignature) {
+      logger.error(
+        `[${PACKAGE_NAME}] 活动场景组件校验执行失败：${lastValidation.errorMessage}`,
+      );
+    }
+    lastFailureSignature = failureSignature;
     writeSession(true);
     return {
       sceneName: "",
       nodeCount: 0,
       issues: [],
-      unavailable: true,
+      failed: true,
+      errorCode: lastValidation.errorCode,
+      errorMessage: lastValidation.errorMessage,
     };
   }
 }
@@ -142,7 +162,7 @@ function load() {
     VALIDATION_INTERVAL_MS,
   );
   void validateActiveScene();
-  Editor.log(`[${PACKAGE_NAME}] 跨电脑开发工作流已连接。`);
+  logger.info(`[${PACKAGE_NAME}] 跨电脑开发工作流已连接。`);
 }
 
 /** 清理定时器并把会话标记为离线。 */

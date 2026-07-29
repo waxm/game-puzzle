@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "machine": {
+    "processDiscovery": "auto",
+    "portDiscovery": "auto",
+    "browserControl": "unknown"
+  }
+}

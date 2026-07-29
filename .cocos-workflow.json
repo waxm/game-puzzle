@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "workflowVersion": "1.0.0",
+  "workflowVersion": "1.1.0",
   "creator": {
     "version": "3.8.4",
     "launchPolicy": "dashboard-only",
@@ -9,8 +9,12 @@
   "preview": {
     "reuseExistingBrowserTab": true,
     "createTabOnlyWhenMissing": true,
-    "consoleFirst": true,
-    "screenshotOnlyForVisualIssues": true
+    "browserControlRequirement": "external-tool",
+    "errorInspectionOrder": [
+      "editor-log",
+      "browser-console"
+    ],
+    "screenshotPolicy": "visual-only"
   },
   "logs": {
     "editor": "temp/logs/project.log",
@@ -20,8 +24,13 @@
   },
   "validation": {
     "developmentBuildPolicy": "explicit-only",
-    "precommitScript": "verify",
-    "moduleFailureReassessmentLimit": 2
+    "submissionValidationScript": "verify",
+    "failureReassessmentLimit": 2
+  },
+  "machine": {
+    "processDiscovery": "auto",
+    "portDiscovery": "auto",
+    "browserControl": "unknown"
   },
   "componentRules": "tools/cocos-workflow/component-rules/3.8.4.json",
   "modules": {

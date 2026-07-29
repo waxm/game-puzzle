@@ -1,6 +1,6 @@
 {
   "name": "cocos-workflow-bridge",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "package_version": 2,
   "description": "为跨电脑开发工作流提供 Creator 会话和组件挂载检查。",
   "author": "waxm",

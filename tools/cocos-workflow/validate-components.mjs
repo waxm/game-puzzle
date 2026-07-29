@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { cocosAssetManifest } from "../cocos-asset-manifest.mjs";
 import {
   loadWorkflowConfig,
   projectRoot,
@@ -10,28 +11,43 @@ import {
   resolveProjectPath,
 } from "./lib.mjs";
 
-/** 需要扫描的正式 Cocos 资源根目录。 */
-const serializedAssetRoots = ["assets/scene", "assets/resources"];
+/** 从正式资源清单解析全部 Scene 和 Prefab，避免业务模块深层目录漏检。 */
+function collectManifestAssetPaths(manifest) {
+  if (!Array.isArray(manifest) || manifest.length === 0) {
+    throw new Error("Cocos 资源校验清单不能为空。");
+  }
 
-/** 递归收集正式 Scene 和 Prefab。 */
-function collectSerializedAssets(directoryPath, result = []) {
-  if (!fs.existsSync(directoryPath)) {
-    return result;
-  }
-  for (const entry of fs.readdirSync(directoryPath, {
-    withFileTypes: true,
-  })) {
-    const entryPath = path.join(directoryPath, entry.name);
-    if (entry.isDirectory()) {
-      collectSerializedAssets(entryPath, result);
-    } else if (
-      entry.isFile() &&
-      (entry.name.endsWith(".scene") || entry.name.endsWith(".prefab"))
-    ) {
-      result.push(entryPath);
+  const registeredPaths = new Set();
+  const assetPaths = [];
+  for (const assetConfig of manifest) {
+    const { assetPath, kind } = assetConfig ?? {};
+    if (kind !== "scene" && kind !== "prefab") {
+      throw new Error(
+        `${assetPath ?? "<未填写路径>"} 的资源类型必须是 scene 或 prefab。`,
+      );
     }
+    if (
+      typeof assetPath !== "string" ||
+      !assetPath.startsWith("assets/") ||
+      !assetPath.endsWith(`.${kind}`) ||
+      assetPath.includes("\\")
+    ) {
+      throw new Error(
+        `正式 ${kind} 必须使用 assets 下规范的项目相对路径：${assetPath}`,
+      );
+    }
+    if (registeredPaths.has(assetPath)) {
+      throw new Error(`Cocos 资源清单重复登记了 ${assetPath}。`);
+    }
+    registeredPaths.add(assetPath);
+
+    const resolvedPath = resolveProjectPath(assetPath);
+    if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
+      throw new Error(`正式 Cocos 资源不存在：${assetPath}`);
+    }
+    assetPaths.push(resolvedPath);
   }
-  return result;
+  return assetPaths.sort();
 }
 
 /** 返回节点已经挂载的序列化组件类型。 */
@@ -141,9 +157,7 @@ function main() {
     );
   }
 
-  const assetPaths = serializedAssetRoots.flatMap((relativePath) =>
-    collectSerializedAssets(path.join(projectRoot, relativePath)),
-  );
+  const assetPaths = collectManifestAssetPaths(cocosAssetManifest);
   const issues = assetPaths.flatMap((assetPath) =>
     validateAsset(assetPath, rules),
   );

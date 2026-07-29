@@ -71,6 +71,7 @@ function validateActiveScene(rules) {
       nodeCount: 0,
       issues: [],
       unavailable: true,
+      reason: "当前没有打开活动场景。",
     };
   }
   const issues = [];

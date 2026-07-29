@@ -1,18 +1,32 @@
 #!/usr/bin/env node
 
-import { discoverEditorProcess, discoverPreviewUrls } from "./session.mjs";
+import {
+  discoverEditorProcess,
+  discoverPreviewState,
+} from "./session.mjs";
 
 /** 输出当前项目已有的 Creator 预览地址，不创建浏览器进程。 */
 async function main() {
   const editorState = discoverEditorProcess();
+  if (!editorState.processDiscovery.available) {
+    throw new Error(
+      `当前终端无法发现 Creator 进程：${editorState.processDiscovery.reason}`,
+    );
+  }
   if (!editorState.targetProcess) {
     throw new Error(
       "当前项目尚未在 Creator 中打开；请先从 Cocos Dashboard 打开项目。",
     );
   }
-  const previewUrls = await discoverPreviewUrls(
+  const previewState = await discoverPreviewState(
     editorState.targetProcess.pid,
   );
+  if (!previewState.portDiscovery.available) {
+    throw new Error(
+      `当前终端无法发现 Creator 预览端口：${previewState.portDiscovery.reason}`,
+    );
+  }
+  const previewUrls = previewState.urls;
   if (previewUrls.length === 0) {
     throw new Error(
       "未发现当前 Creator 的预览页，请先在编辑器中启动一次预览。",

@@ -82,11 +82,19 @@ function main() {
   }
 
   for (const requiredPath of [
+    ".cocos-workflow.local.example.json",
     ".cocos-workflow.json",
     ".githooks/commit-msg",
+    "extensions/cocos-workflow-bridge/extension-logger.js",
     "extensions/cocos-workflow-bridge/package.json",
     "extensions/cocos-workflow-bridge/main.js",
     "extensions/cocos-workflow-bridge/scene.js",
+    "extensions/cocos-workflow-bridge/validation-state.js",
+    "tools/cocos-workflow/platform/darwin.mjs",
+    "tools/cocos-workflow/platform/index.mjs",
+    "tools/cocos-workflow/platform/linux.mjs",
+    "tools/cocos-workflow/platform/posix.mjs",
+    "tools/cocos-workflow/platform/win32.mjs",
   ]) {
     if (!trackedFiles.includes(requiredPath)) {
       issues.push(`缺少可移植工作流文件：${requiredPath}`);

@@ -7,6 +7,7 @@ import {
   loadWorkflowConfig,
   projectRoot,
   readJson,
+  validateMachineConfig,
 } from "./lib.mjs";
 
 /** 校验 Creator 桥接扩展和工作流脚本契约。 */
@@ -21,6 +22,9 @@ function main() {
   );
   if (extensionPackage.editor !== `>=${config.creator.version}`) {
     throw new Error("Creator 桥接扩展版本范围与工作流配置不一致。");
+  }
+  if (extensionPackage.version !== config.workflowVersion) {
+    throw new Error("Creator 桥接扩展版本与工作流版本不一致。");
   }
   for (const scriptName of [
     "workflow:setup",
@@ -37,6 +41,28 @@ function main() {
       throw new Error(`package.json 缺少工作流脚本：${scriptName}`);
     }
   }
+  if (
+    !packageJson.scripts?.[
+      config.validation.submissionValidationScript
+    ]
+  ) {
+    throw new Error(
+      `package.json 缺少完整验证脚本：${config.validation.submissionValidationScript}`,
+    );
+  }
+  const localExample = readJson(
+    path.join(
+      projectRoot,
+      ".cocos-workflow.local.example.json",
+    ),
+  );
+  if (localExample.schemaVersion !== 1) {
+    throw new Error("本机工作流配置示例版本必须为 1。");
+  }
+  validateMachineConfig(
+    localExample.machine,
+    "本机工作流配置示例的 machine",
+  );
   const hookSource = fs.readFileSync(
     path.join(projectRoot, ".githooks/commit-msg"),
     "utf8",

@@ -3,10 +3,15 @@ import http from "node:http";
 import path from "node:path";
 
 import {
+  loadWorkflowConfig,
   projectRoot,
   runCommand,
   workflowTempDirectory,
 } from "./lib.mjs";
+import { getPlatformAdapter } from "./platform/index.mjs";
+
+/** 当前系统对应的进程和端口发现适配器。 */
+const platformAdapter = getPlatformAdapter();
 
 /** Creator 扩展写入的项目会话文件。 */
 const editorSessionPath = path.join(
@@ -22,48 +27,6 @@ function parseProjectArgument(commandLine) {
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? "";
 }
 
-/** 按平台取得当前进程列表。 */
-function listProcesses() {
-  if (process.platform === "win32") {
-    const script = [
-      "Get-CimInstance Win32_Process",
-      "Select-Object ProcessId,CommandLine,Name",
-      "ConvertTo-Json -Compress",
-    ].join(" | ");
-    const result = runCommand(
-      "powershell.exe",
-      ["-NoProfile", "-Command", script],
-      { allowFailure: true },
-    );
-    if (result.status !== 0 || !result.stdout) {
-      return [];
-    }
-    const parsed = JSON.parse(result.stdout);
-    return (Array.isArray(parsed) ? parsed : [parsed]).map((item) => ({
-      pid: Number(item.ProcessId),
-      command: `${item.Name ?? ""} ${item.CommandLine ?? ""}`,
-    }));
-  }
-
-  const result = runCommand("ps", ["-axo", "pid=,command="], {
-    allowFailure: true,
-  });
-  if (result.status !== 0) {
-    return [];
-  }
-  return result.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const match = line.match(/^(\d+)\s+(.+)$/);
-      return match
-        ? { pid: Number(match[1]), command: match[2] }
-        : null;
-    })
-    .filter(Boolean);
-}
-
 /** 统一不同平台的路径比较。 */
 function normalizeComparablePath(value) {
   const normalized = path.resolve(value);
@@ -74,7 +37,15 @@ function normalizeComparablePath(value) {
 
 /** 查找当前项目对应的 Creator 进程和 Dashboard 状态。 */
 export function discoverEditorProcess() {
-  const processes = listProcesses();
+  const processDiscovery =
+    loadWorkflowConfig().machine.processDiscovery === "disabled"
+      ? {
+          available: false,
+          processes: [],
+          reason: "本机配置已禁用进程发现。",
+        }
+      : platformAdapter.listProcesses(runCommand);
+  const processes = processDiscovery.processes;
   const expectedProjectPath = normalizeComparablePath(projectRoot);
   const creatorProcesses = processes.filter((item) =>
     /CocosCreator(?:\.exe)?(?:\s|$)/i.test(item.command),
@@ -101,6 +72,11 @@ export function discoverEditorProcess() {
     dashboardRunning: processes.some((item) =>
       /CocosDashboard(?:\.exe)?(?:\s|$)/i.test(item.command),
     ),
+    processDiscovery: {
+      available: processDiscovery.available,
+      platform: process.platform,
+      reason: processDiscovery.reason,
+    },
   };
 }
 
@@ -126,39 +102,56 @@ export function readEditorSession() {
   }
 }
 
-/** 按平台读取指定进程正在监听的 TCP 端口。 */
-function listListeningPorts(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) {
-    return [];
-  }
-  if (process.platform === "win32") {
-    const script = [
-      `Get-NetTCPConnection -State Listen -OwningProcess ${pid}`,
-      "Select-Object -ExpandProperty LocalPort",
-    ].join(" | ");
-    const result = runCommand(
-      "powershell.exe",
-      ["-NoProfile", "-Command", script],
-      { allowFailure: true },
-    );
-    return result.stdout
-      .split(/\s+/)
-      .map(Number)
-      .filter((port) => Number.isInteger(port) && port > 0);
+/** 动态发现当前 Creator 进程提供的预览地址和端口发现能力。 */
+export async function discoverPreviewState(editorPid) {
+  if (!Number.isInteger(editorPid) || editorPid <= 0) {
+    return {
+      urls: [],
+      portDiscovery: {
+        available: false,
+        platform: process.platform,
+        reason: "Creator PID 无效，无法发现预览端口。",
+      },
+    };
   }
 
-  const result = runCommand(
-    "lsof",
-    ["-nP", "-a", "-p", String(pid), "-iTCP", "-sTCP:LISTEN"],
-    { allowFailure: true },
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"),
   );
-  return [
-    ...new Set(
-      [...result.stdout.matchAll(/TCP\s+[^:]+:(\d+)\s+\(LISTEN\)/g)].map(
-        (match) => Number(match[1]),
-      ),
-    ),
-  ];
+  const portDiscovery =
+    loadWorkflowConfig().machine.portDiscovery === "disabled"
+      ? {
+          available: false,
+          ports: [],
+          reason: "本机配置已禁用端口发现。",
+        }
+      : platformAdapter.listListeningPorts(editorPid, runCommand);
+  if (!portDiscovery.available) {
+    return {
+      urls: [],
+      portDiscovery: {
+        available: false,
+        platform: process.platform,
+        reason: portDiscovery.reason,
+      },
+    };
+  }
+  const checks = await Promise.all(
+    portDiscovery.ports.map(async (port) => ({
+      port,
+      matches: await probePreviewPort(port, packageJson.name),
+    })),
+  );
+  return {
+    urls: checks
+      .filter((item) => item.matches)
+      .map((item) => `http://localhost:${item.port}/`),
+    portDiscovery: {
+      available: true,
+      platform: process.platform,
+      reason: null,
+    },
+  };
 }
 
 /** 判断本地 HTTP 端口是否为当前项目的 Creator 预览页。 */
@@ -199,19 +192,7 @@ function probePreviewPort(port, projectName) {
   });
 }
 
-/** 动态发现当前 Creator 进程提供的预览地址。 */
+/** 兼容只需要预览地址的调用方。 */
 export async function discoverPreviewUrls(editorPid) {
-  const packageJson = JSON.parse(
-    fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"),
-  );
-  const ports = listListeningPorts(editorPid);
-  const checks = await Promise.all(
-    ports.map(async (port) => ({
-      port,
-      matches: await probePreviewPort(port, packageJson.name),
-    })),
-  );
-  return checks
-    .filter((item) => item.matches)
-    .map((item) => `http://localhost:${item.port}/`);
+  return (await discoverPreviewState(editorPid)).urls;
 }
