@@ -38,6 +38,17 @@ const internalAssetUuids = new Set([
   "6f01cf7f-81bf-4a7e-bd5d-0afc19696480@b47c0",
 ]);
 
+/** EditBox 宿主节点不能共存的 UI 渲染组件。 */
+const editBoxConflictingRendererTypes = new Set([
+  "cc.Graphics",
+  "cc.Label",
+  "cc.Mask",
+  "cc.ParticleSystem2D",
+  "cc.RichText",
+  "cc.TiledMap",
+  "cc.UIMeshRenderer",
+]);
+
 /** 当前校验器支持的资源专项检查。 */
 const supportedChecks = new Set(["noCanvasAudio", "gamePanelHierarchy"]);
 
@@ -161,10 +172,10 @@ function validateBindingMap(assetPath, className, bindings, isAssetBinding) {
     if (!field || !binding || typeof binding !== "object") {
       throw new Error(`${assetPath} 的 ${className}.${field} 绑定配置无效。`);
     }
-    if (typeof binding.type !== "string" || binding.type.length === 0) {
-      throw new Error(`${assetPath} 的 ${className}.${field} 缺少组件类型。`);
-    }
     if (isAssetBinding) {
+      if (typeof binding.type !== "string" || binding.type.length === 0) {
+        throw new Error(`${assetPath} 的 ${className}.${field} 缺少资源类型。`);
+      }
       validateProjectRelativePath(
         binding.assetMetaPath,
         `${className}.${field} 资源 Meta 路径`,
@@ -172,11 +183,31 @@ function validateBindingMap(assetPath, className, bindings, isAssetBinding) {
       if (!binding.assetMetaPath.endsWith(".meta")) {
         throw new Error(`${className}.${field} 必须指向资源的 .meta 文件。`);
       }
-    } else if (
-      typeof binding.nodeName !== "string" ||
-      binding.nodeName.length === 0
-    ) {
-      throw new Error(`${className}.${field} 必须登记目标节点名称。`);
+    } else {
+      const hasEngineType =
+        typeof binding.type === "string" && binding.type.length > 0;
+      const hasScriptType =
+        typeof binding.scriptClassName === "string" &&
+        binding.scriptClassName.length > 0 &&
+        typeof binding.scriptSourcePath === "string";
+      if (!hasEngineType && !hasScriptType) {
+        throw new Error(`${assetPath} 的 ${className}.${field} 缺少组件类型。`);
+      }
+      if (hasScriptType) {
+        validateProjectRelativePath(
+          binding.scriptSourcePath,
+          `${className}.${field} 脚本组件源码路径`,
+        );
+        if (!binding.scriptSourcePath.endsWith(".ts")) {
+          throw new Error(`${className}.${field} 的脚本组件必须指向 TypeScript。`);
+        }
+      }
+      if (
+        typeof binding.nodeName !== "string" ||
+        binding.nodeName.length === 0
+      ) {
+        throw new Error(`${className}.${field} 必须登记目标节点名称。`);
+      }
     }
   }
 }
@@ -309,6 +340,7 @@ function validateSerializedAsset(
   validateAssetMeta(assetPath, kind, localUuidIndex);
   validateReferenceRange(objects, assetPath);
   validateNodeRelations(objects, assetPath);
+  validateEditBoxRendererCompatibility(objects, assetPath);
   validateSerializedUuids(objects, assetPath, localUuidIndex);
   if (kind === "scene") {
     validateSceneGlobals(objects, assetPath);
@@ -340,6 +372,34 @@ function validateSerializedAsset(
       0,
     ),
   };
+}
+
+/**
+ * 校验 EditBox 宿主节点没有占用 Sprite 所需的 UI 渲染组件槽位。
+ *
+ * Creator 会在 EditBox 启用时自动补 Sprite；Graphics 等渲染组件若与其同节点，
+ * Prefab 静态结构仍可能合法，但编辑器真正打开资源时会激活失败。
+ */
+function validateEditBoxRendererCompatibility(objects, assetPath) {
+  for (const node of objects) {
+    if (node?.__type__ !== "cc.Node") {
+      continue;
+    }
+    const componentTypes = (node._components ?? []).map(
+      (reference) => objects[reference.__id__]?.__type__,
+    );
+    if (!componentTypes.includes("cc.EditBox")) {
+      continue;
+    }
+    const conflictingType = componentTypes.find((type) =>
+      editBoxConflictingRendererTypes.has(type),
+    );
+    if (conflictingType) {
+      throw new Error(
+        `${assetPath} 的 ${node._name} 不能同时挂载 cc.EditBox 和 ${conflictingType}。`,
+      );
+    }
+  }
 }
 
 /**
@@ -443,7 +503,16 @@ function validateSerializedScript(
   for (const [field, binding] of Object.entries(
     scriptConfig.objectBindings ?? {},
   )) {
-    validateObjectBinding(objects, assetPath, scriptConfig, script, field, binding);
+    validateObjectBinding(
+      objects,
+      assetPath,
+      scriptConfig,
+      script,
+      field,
+      binding,
+      compiledScriptRegistry,
+      scriptInfoCache,
+    );
     bindingCount += 1;
   }
   for (const [field, binding] of Object.entries(
@@ -545,12 +614,25 @@ function validateObjectBinding(
   script,
   field,
   binding,
+  compiledScriptRegistry,
+  scriptInfoCache,
 ) {
+  const expectedType = binding.scriptClassName
+    ? resolveScriptInfo(
+        {
+          className: binding.scriptClassName,
+          sourcePath: binding.scriptSourcePath,
+        },
+        compiledScriptRegistry,
+        scriptInfoCache,
+      ).typeId
+    : binding.type;
   const referenceId = script[field]?.__id__;
   const target = objects[referenceId];
-  if (target?.__type__ !== binding.type) {
+  if (target?.__type__ !== expectedType) {
     throw new Error(
-      `${assetPath} 的 ${scriptConfig.className}.${field} 未绑定到 ${binding.type}。`,
+      `${assetPath} 的 ${scriptConfig.className}.${field} 未绑定到 ` +
+        `${binding.scriptClassName ?? binding.type}。`,
     );
   }
 

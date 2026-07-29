@@ -169,8 +169,162 @@ export const cocosAssetManifest = [
         objectBindings: {
           titleLabel: { type: "cc.Label", nodeName: "TitleLabel" },
           startButton: { type: "cc.Button", nodeName: "StartButton" },
-          startButtonLabel: { type: "cc.Label", nodeName: "Label" },
+          startButtonLabel: { type: "cc.Label", nodeName: "StartButtonLabel" },
           tipLabel: { type: "cc.Label", nodeName: "TipLabel" },
+          profileButton: { type: "cc.Button", nodeName: "ProfileButton" },
+          profileAvatarRenderer: {
+            scriptClassName: "PuzzleAvatarRenderer",
+            scriptSourcePath:
+              "assets/app/ui/common/PuzzleAvatarRenderer.ts",
+            nodeName: "ProfileAvatar",
+          },
+          profileNameLabel: {
+            type: "cc.Label",
+            nodeName: "ProfileNameLabel",
+          },
+          settingsButton: { type: "cc.Button", nodeName: "SettingsButton" },
+          settingsButtonGraphics: {
+            type: "cc.Graphics",
+            nodeName: "SettingsButton",
+          },
+        },
+      },
+      {
+        className: "PuzzleAvatarRenderer",
+        sourcePath: "assets/app/ui/common/PuzzleAvatarRenderer.ts",
+        hostNodeName: "ProfileAvatar",
+        objectBindings: {
+          graphics: { type: "cc.Graphics", nodeName: "ProfileAvatar" },
+          symbolLabel: { type: "cc.Label", nodeName: "SymbolLabel" },
+        },
+      },
+    ],
+  },
+  {
+    kind: "prefab",
+    assetPath: "assets/resources/prefabs/item/PuzzleAvatarItem.prefab",
+    scripts: [
+      {
+        className: "PuzzleAvatarItem",
+        sourcePath: "assets/app/ui/item/PuzzleAvatarItem.ts",
+        hostNodeName: "PuzzleAvatarItem",
+        objectBindings: {
+          selectButton: { type: "cc.Button", nodeName: "PuzzleAvatarItem" },
+          avatarRenderer: {
+            scriptClassName: "PuzzleAvatarRenderer",
+            scriptSourcePath:
+              "assets/app/ui/common/PuzzleAvatarRenderer.ts",
+            nodeName: "Avatar",
+          },
+          nameLabel: { type: "cc.Label", nodeName: "NameLabel" },
+          selectedLabel: { type: "cc.Label", nodeName: "SelectedLabel" },
+        },
+      },
+      {
+        className: "PuzzleAvatarRenderer",
+        sourcePath: "assets/app/ui/common/PuzzleAvatarRenderer.ts",
+        hostNodeName: "Avatar",
+        objectBindings: {
+          graphics: { type: "cc.Graphics", nodeName: "Avatar" },
+          symbolLabel: { type: "cc.Label", nodeName: "SymbolLabel" },
+        },
+      },
+    ],
+  },
+  {
+    kind: "prefab",
+    assetPath: "assets/resources/prefabs/popup/UIProfilePanel.prefab",
+    scripts: [
+      {
+        className: "UIProfilePanel",
+        sourcePath: "assets/app/ui/popup/UIProfilePanel.ts",
+        hostNodeName: "UIProfilePanel",
+        objectBindings: {
+          overlayGraphics: { type: "cc.Graphics", nodeName: "UIProfilePanel" },
+          panelGraphics: { type: "cc.Graphics", nodeName: "Panel" },
+          closeButton: { type: "cc.Button", nodeName: "CloseButton" },
+          closeButtonGraphics: {
+            type: "cc.Graphics",
+            nodeName: "CloseButton",
+          },
+          currentAvatarRenderer: {
+            scriptClassName: "PuzzleAvatarRenderer",
+            scriptSourcePath:
+              "assets/app/ui/common/PuzzleAvatarRenderer.ts",
+            nodeName: "CurrentAvatar",
+          },
+          nameEditBox: { type: "cc.EditBox", nodeName: "NameEditBox" },
+          nameInputGraphics: {
+            type: "cc.Graphics",
+            nodeName: "NameEditBoxBackground",
+          },
+          saveNameButton: { type: "cc.Button", nodeName: "SaveNameButton" },
+          saveNameGraphics: {
+            type: "cc.Graphics",
+            nodeName: "SaveNameButton",
+          },
+          avatarListContent: { type: "cc.Node", nodeName: "AvatarListContent" },
+          feedbackLabel: { type: "cc.Label", nodeName: "FeedbackLabel" },
+        },
+      },
+      {
+        className: "PuzzleAvatarRenderer",
+        sourcePath: "assets/app/ui/common/PuzzleAvatarRenderer.ts",
+        hostNodeName: "CurrentAvatar",
+        objectBindings: {
+          graphics: { type: "cc.Graphics", nodeName: "CurrentAvatar" },
+          symbolLabel: { type: "cc.Label", nodeName: "SymbolLabel" },
+        },
+      },
+    ],
+  },
+  {
+    kind: "prefab",
+    assetPath: "assets/resources/prefabs/popup/UISettingsPanel.prefab",
+    scripts: [
+      {
+        className: "UISettingsPanel",
+        sourcePath: "assets/app/ui/popup/UISettingsPanel.ts",
+        hostNodeName: "UISettingsPanel",
+        objectBindings: {
+          overlayGraphics: {
+            type: "cc.Graphics",
+            nodeName: "UISettingsPanel",
+          },
+          panelGraphics: { type: "cc.Graphics", nodeName: "Panel" },
+          closeButton: { type: "cc.Button", nodeName: "CloseButton" },
+          closeButtonGraphics: {
+            type: "cc.Graphics",
+            nodeName: "CloseButton",
+          },
+          soundButton: { type: "cc.Button", nodeName: "SoundButton" },
+          soundGraphics: { type: "cc.Graphics", nodeName: "SoundButton" },
+          soundValueLabel: {
+            type: "cc.Label",
+            nodeName: "SoundButtonLabel",
+          },
+          vibrationButton: {
+            type: "cc.Button",
+            nodeName: "VibrationButton",
+          },
+          vibrationGraphics: {
+            type: "cc.Graphics",
+            nodeName: "VibrationButton",
+          },
+          vibrationValueLabel: {
+            type: "cc.Label",
+            nodeName: "VibrationButtonLabel",
+          },
+          helpButton: { type: "cc.Button", nodeName: "HelpButton" },
+          helpGraphics: { type: "cc.Graphics", nodeName: "HelpButton" },
+          ratingButton: { type: "cc.Button", nodeName: "RatingButton" },
+          ratingGraphics: { type: "cc.Graphics", nodeName: "RatingButton" },
+          privacyButton: { type: "cc.Button", nodeName: "PrivacyButton" },
+          privacyGraphics: { type: "cc.Graphics", nodeName: "PrivacyButton" },
+          termsButton: { type: "cc.Button", nodeName: "TermsButton" },
+          termsGraphics: { type: "cc.Graphics", nodeName: "TermsButton" },
+          feedbackLabel: { type: "cc.Label", nodeName: "FeedbackLabel" },
+          versionLabel: { type: "cc.Label", nodeName: "VersionLabel" },
         },
       },
     ],

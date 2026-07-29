@@ -1,5 +1,6 @@
 import { _decorator, Node } from "cc";
 import { EventCenter } from "../core/event/EventCenter";
+import { PoolManager } from "../core/pool/PoolManager";
 import { SceneBase } from "../core/scene/SceneBase";
 import { SceneManager } from "../core/scene/SceneManager";
 import { UIManager } from "../core/ui/UIManager";
@@ -8,9 +9,15 @@ import { PuzzleLevelNumbers } from "../game/config/PuzzleLevelConfig";
 import { GameEvent, GameStartRequest } from "../game/GameEvent";
 import {
     PuzzleSceneName,
+    PuzzlePoolName,
     PuzzleUIConfig,
     PuzzleUIName,
 } from "../game/PuzzleGameKey";
+import { PuzzleSystemEvent } from "../game/PuzzleSystemEvent";
+import {
+    PuzzleProfileData,
+    PuzzleProfileManager,
+} from "../game/profile/PuzzleProfileManager";
 import { PuzzleLevelSession } from "../game/progress/PuzzleLevelSession";
 import { PuzzleProgressManager } from "../game/progress/PuzzleProgressManager";
 import {
@@ -43,6 +50,12 @@ export class LobbyScene extends SceneBase {
     /** 当前进入游戏请求编号，用于丢弃离场或重试前的旧关卡加载结果。 */
     private _gameEntryRequestId = 0;
 
+    /** 当前设置弹窗打开请求编号。 */
+    private _settingsRequestId = 0;
+
+    /** 当前资料弹窗打开请求编号。 */
+    private _profileRequestId = 0;
+
     /** 是否正在准备关卡或进入游戏场景，防止连续点击重复加载。 */
     private _sceneTransitioning = false;
 
@@ -63,21 +76,56 @@ export class LobbyScene extends SceneBase {
         this._homePanelRequestId += 1;
         this._errorPanelRequestId += 1;
         this._gameEntryRequestId += 1;
+        this._settingsRequestId += 1;
+        this._profileRequestId += 1;
         PuzzleLevelSession.cancelPendingSelection();
         this._sceneTransitioning = false;
         UIManager.close(PuzzleUIName.Home, true);
+        UIManager.close(PuzzleUIName.Settings, true);
+        UIManager.close(PuzzleUIName.Profile, true);
         UIManager.close(PuzzleUIName.LoadError, true);
+        PoolManager.clear(PuzzlePoolName.AvatarItem, true);
         super.onExit();
     }
 
     /** 注册大厅场景事件。 */
     protected bindEvents(): void {
         EventCenter.on(GameEvent.GameStart, this.onGameStart, this);
+        EventCenter.on(
+            PuzzleSystemEvent.SettingsOpenRequested,
+            this.onSettingsOpenRequested,
+            this,
+        );
+        EventCenter.on(
+            PuzzleSystemEvent.ProfileOpenRequested,
+            this.onProfileOpenRequested,
+            this,
+        );
+        EventCenter.on(
+            PuzzleSystemEvent.ProfileChanged,
+            this.onProfileChanged,
+            this,
+        );
     }
 
     /** 注销大厅场景事件。 */
     protected unbindEvents(): void {
         EventCenter.off(GameEvent.GameStart, this.onGameStart, this);
+        EventCenter.off(
+            PuzzleSystemEvent.SettingsOpenRequested,
+            this.onSettingsOpenRequested,
+            this,
+        );
+        EventCenter.off(
+            PuzzleSystemEvent.ProfileOpenRequested,
+            this.onProfileOpenRequested,
+            this,
+        );
+        EventCenter.off(
+            PuzzleSystemEvent.ProfileChanged,
+            this.onProfileChanged,
+            this,
+        );
     }
 
     /** 根据当前存档生成首页展示参数。 */
@@ -87,6 +135,7 @@ export class LobbyScene extends SceneBase {
             targetLevel: PuzzleProgressManager.getHighestUnlockedLevel(),
             completedCount: progress.completedLevels.length,
             totalCount: PuzzleLevelNumbers.length,
+            profile: PuzzleProfileManager.getProfile(),
         };
     }
 
@@ -129,6 +178,60 @@ export class LobbyScene extends SceneBase {
         }
         this.runAsyncTask(this.enterGameScene(request), "进入游戏场景");
     };
+
+    /** 收到设置入口请求后打开设置弹窗。 */
+    private onSettingsOpenRequested = (): void => {
+        UIManager.close(PuzzleUIName.Profile);
+        this.runAsyncTask(this.openSettingsPanel(), "打开设置弹窗");
+    };
+
+    /** 收到头像入口请求后打开资料弹窗。 */
+    private onProfileOpenRequested = (): void => {
+        UIManager.close(PuzzleUIName.Settings);
+        this.runAsyncTask(this.openProfilePanel(), "打开头像资料弹窗");
+    };
+
+    /** 玩家资料更新后立即刷新大厅左上角展示。 */
+    private onProfileChanged = (profile?: PuzzleProfileData): void => {
+        if (!profile) {
+            return;
+        }
+        UIManager.get<UIHomePanel>(PuzzleUIName.Home)?.setProfile(profile);
+    };
+
+    /** 打开设置弹窗并记录完整加载失败。 */
+    private async openSettingsPanel(): Promise<void> {
+        const requestId = ++this._settingsRequestId;
+        const result = await UIManager.open(PuzzleUIName.Settings);
+        if (
+            !this.node.isValid ||
+            requestId !== this._settingsRequestId ||
+            result.status !== "failed"
+        ) {
+            return;
+        }
+        Logger.error(
+            `设置弹窗打开失败，阶段：${result.reason ?? "unknown"}`,
+            result.error,
+        );
+    }
+
+    /** 打开头像资料弹窗并记录完整加载失败。 */
+    private async openProfilePanel(): Promise<void> {
+        const requestId = ++this._profileRequestId;
+        const result = await UIManager.open(PuzzleUIName.Profile);
+        if (
+            !this.node.isValid ||
+            requestId !== this._profileRequestId ||
+            result.status !== "failed"
+        ) {
+            return;
+        }
+        Logger.error(
+            `头像资料弹窗打开失败，阶段：${result.reason ?? "unknown"}`,
+            result.error,
+        );
+    }
 
     /** 异步加载并校验关卡 JSON，再等待 Game 场景真实加载成功。 */
     private async enterGameScene(request: GameStartRequest): Promise<void> {
@@ -241,6 +344,8 @@ export class LobbyScene extends SceneBase {
         UIManager.registerMany([
             PuzzleUIConfig.Home,
             PuzzleUIConfig.LoadError,
+            PuzzleUIConfig.Settings,
+            PuzzleUIConfig.Profile,
         ]);
     }
 }

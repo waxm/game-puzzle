@@ -1,0 +1,379 @@
+{
+  "schemaVersion": 1,
+  "module": {
+    "id": "profile-avatar",
+    "title": "光影拼图头像资料系统",
+    "kind": "system",
+    "phase": "test-ready"
+  },
+  "capabilities": {
+    "ui": true,
+    "api": false,
+    "list": true,
+    "persistence": true,
+    "analytics": false,
+    "time": false
+  },
+  "sources": [
+    {
+      "id": "profile-requirement",
+      "kind": "requirement",
+      "status": "read",
+      "location": "用户 2026-07-29 头像模块需求"
+    },
+    {
+      "id": "project-rules",
+      "kind": "project",
+      "status": "read",
+      "location": "AGENTS.md"
+    },
+    {
+      "id": "profile-layout",
+      "kind": "design",
+      "status": "read",
+      "location": "用户指定左上角入口、当前头像、名称和可选择头像列表"
+    }
+  ],
+  "project": {
+    "creatorVersion": "3.8.4",
+    "designResolution": {
+      "width": 640,
+      "height": 1136
+    },
+    "orientation": "portrait"
+  },
+  "scope": {
+    "included": [
+      "大厅左上角当前头像和名称",
+      "玩家名称编辑与校验",
+      "六个内置头像选择列表",
+      "玩家资料版本化存档",
+      "头像列表项对象池生命周期"
+    ],
+    "excluded": [
+      "账号登录和云端资料",
+      "相册上传与裁剪",
+      "付费或解锁头像"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "stable-avatar-id",
+      "confidence": "confirmed",
+      "impact": "structure",
+      "statement": "存档只保存稳定 avatarId，图形表现由头像目录和渲染器负责。",
+      "sources": ["profile-requirement", "project-rules"]
+    },
+    {
+      "id": "pooled-avatar-items",
+      "confidence": "confirmed",
+      "impact": "behavior",
+      "statement": "动态头像列表使用独立 PuzzleAvatarItem Prefab 和 PoolManager 创建回收。",
+      "sources": ["project-rules", "profile-layout"]
+    },
+    {
+      "id": "local-profile",
+      "confidence": "explicit",
+      "impact": "behavior",
+      "statement": "当前阶段玩家资料保存在本地，不依赖登录接口。",
+      "sources": ["profile-requirement"]
+    }
+  ],
+  "openQuestions": [],
+  "states": ["closed", "opening", "loading-list", "ready", "saving", "closing"],
+  "transitions": [
+    {
+      "event": "request-open",
+      "from": "closed",
+      "to": "opening",
+      "authority": "LobbyScene"
+    },
+    {
+      "event": "prefab-opened",
+      "from": "opening",
+      "to": "loading-list",
+      "authority": "UIManager"
+    },
+    {
+      "event": "pool-ready",
+      "from": "loading-list",
+      "to": "ready",
+      "authority": "UIProfilePanel"
+    },
+    {
+      "event": "save-name-or-avatar",
+      "from": "ready",
+      "to": "saving",
+      "authority": "UIProfilePanel"
+    },
+    {
+      "event": "saved",
+      "from": "saving",
+      "to": "ready",
+      "authority": "PuzzleProfileManager"
+    },
+    {
+      "event": "close",
+      "from": "ready",
+      "to": "closing",
+      "authority": "UIProfilePanel"
+    },
+    {
+      "event": "closed",
+      "from": "closing",
+      "to": "closed",
+      "authority": "UIManager"
+    }
+  ],
+  "architecture": {
+    "artifacts": [
+      {
+        "id": "profile-view",
+        "role": "view",
+        "responsibility": "展示当前资料、名称输入、头像列表和保存反馈。"
+      },
+      {
+        "id": "avatar-item",
+        "role": "item",
+        "responsibility": "以对象池生命周期展示单个可选头像并转发选择。"
+      },
+      {
+        "id": "profile-model",
+        "role": "model",
+        "responsibility": "校验名称、头像编号和版本化玩家资料存档。"
+      },
+      {
+        "id": "avatar-config",
+        "role": "config",
+        "responsibility": "维护不修改既有 id 的正式头像目录。"
+      }
+    ]
+  },
+  "interfaces": [],
+  "ui": {
+    "screens": [
+      {
+        "id": "profile-screen",
+        "kind": "modal-popup",
+        "prefab": "UIProfilePanel"
+      }
+    ],
+    "lists": [
+      {
+        "id": "avatar-list",
+        "owner": "profile-screen",
+        "container": "AvatarListContent",
+        "itemPrefab": "PuzzleAvatarItem",
+        "dynamic": true,
+        "emptyState": "显示头像列表加载失败，请重新打开"
+      }
+    ],
+    "bindings": [
+      {
+        "name": "currentAvatarRenderer",
+        "component": "PuzzleAvatarRenderer",
+        "owner": "profile-screen",
+        "classification": "dynamic",
+        "source": "puzzle.profile.avatarId",
+        "required": true,
+        "reason": "必须实时展示持久化的当前头像。"
+      },
+      {
+        "name": "nameEditBox",
+        "component": "cc.EditBox",
+        "owner": "profile-screen",
+        "classification": "interactive",
+        "source": "puzzle.profile.name",
+        "required": true,
+        "reason": "玩家名称允许编辑并经过规则校验。"
+      },
+      {
+        "name": "avatarListContent",
+        "component": "cc.Node",
+        "owner": "profile-screen",
+        "classification": "dynamic",
+        "source": "PUZZLE_AVATAR_CATALOG",
+        "required": true,
+        "reason": "六个头像项由对象池动态放入明确容器。"
+      },
+      {
+        "name": "selectButton",
+        "component": "cc.Button",
+        "owner": "avatar-item",
+        "classification": "interactive",
+        "source": "PuzzleAvatarItemData.onSelect",
+        "required": true,
+        "reason": "列表项必须把稳定头像编号转发给资料服务。"
+      }
+    ],
+    "actions": [
+      {
+        "id": "save-player-name",
+        "owner": "profile-screen",
+        "trigger": "saveNameButton click",
+        "handler": "PuzzleProfileManager.setName"
+      },
+      {
+        "id": "select-avatar",
+        "owner": "avatar-item",
+        "trigger": "selectButton click",
+        "handler": "PuzzleProfileManager.selectAvatar"
+      },
+      {
+        "id": "close-profile",
+        "owner": "profile-screen",
+        "trigger": "closeButton click",
+        "handler": "UIManager.close"
+      }
+    ],
+    "visualStates": [
+      {
+        "id": "avatar-selected",
+        "owner": "avatar-item",
+        "description": "当前头像显示金色描边和“当前”文字。"
+      },
+      {
+        "id": "profile-saved",
+        "owner": "profile-screen",
+        "description": "名称或头像保存后显示绿色成功反馈。"
+      },
+      {
+        "id": "profile-invalid-name",
+        "owner": "profile-screen",
+        "description": "空名称被拒绝并提示输入有效名称。"
+      }
+    ]
+  },
+  "acceptance": {
+    "cases": [
+      {
+        "id": "profile-defaults",
+        "title": "首次启动显示默认名称和晨光头像",
+        "status": "passed",
+        "sources": ["profile-requirement"]
+      },
+      {
+        "id": "profile-name",
+        "title": "名称可保存、去空格并限制 12 个 Unicode 字符",
+        "status": "passed",
+        "sources": ["profile-requirement", "project-rules"]
+      },
+      {
+        "id": "profile-avatar-list",
+        "title": "六个头像均可显示并切换当前选中态",
+        "status": "passed",
+        "sources": ["profile-layout"]
+      },
+      {
+        "id": "profile-home-sync",
+        "title": "资料变化立即同步大厅左上角并在刷新后恢复",
+        "status": "passed",
+        "sources": ["profile-requirement"]
+      },
+      {
+        "id": "profile-cleanup",
+        "title": "关闭资料页回收头像项并注销旧回调",
+        "status": "passed",
+        "sources": ["project-rules"]
+      }
+    ],
+    "gates": [
+      { "id": "contract", "status": "passed" },
+      { "id": "static", "status": "passed" },
+      { "id": "creator-import", "status": "passed" },
+      { "id": "visual", "status": "passed" },
+      { "id": "functional-smoke", "status": "passed" },
+      { "id": "functional", "status": "passed" },
+      { "id": "api", "status": "unverified" },
+      { "id": "lifecycle", "status": "passed" },
+      { "id": "regression", "status": "passed" }
+    ]
+  },
+  "evidence": [
+    {
+      "gate": "contract",
+      "type": "command",
+      "result": "模块合同通过 test 目标校验。",
+      "reference": "validate-module-contract.mjs --target test"
+    },
+    {
+      "gate": "static",
+      "type": "command",
+      "result": "严格 TypeScript、Prefab 清单和绑定校验通过。",
+      "reference": "npm run typecheck && npm run validate:cocos"
+    },
+    {
+      "gate": "creator-import",
+      "type": "creator",
+      "result": "Creator 3.8.4 重新导入并打开资料面板；NameEditBox 使用 Sprite，Graphics 底板位于独立子节点，根节点和输入框 Inspector 检查无新增错误。",
+      "reference": "temp/logs/project.log；2026-07-29 本轮 Creator Prefab 打开与节点树检查"
+    },
+    {
+      "gate": "visual",
+      "type": "visual",
+      "result": "当前头像、名称、六头像网格和选中态完整可见，无文字重叠。",
+      "reference": "本轮浏览器资料弹窗最终截图"
+    },
+    {
+      "gate": "functional-smoke",
+      "type": "manual",
+      "result": "名称保存、头像选择、大厅同步和页面刷新恢复均通过。",
+      "reference": "本轮浏览器交互冒烟"
+    },
+    {
+      "gate": "functional",
+      "type": "automation",
+      "result": "默认资料、损坏恢复、名称边界、头像合法性和事件测试通过。",
+      "reference": "npm run verify:puzzle-systems"
+    },
+    {
+      "gate": "lifecycle",
+      "type": "automation",
+      "result": "头像项 reuse/unuse 清理输入回调，面板关闭归还全部节点。",
+      "reference": "PuzzleAvatarItem + UIProfilePanel + npm run verify"
+    },
+    {
+      "gate": "regression",
+      "type": "command",
+      "result": "修复 EditBox 渲染组件冲突后完整项目回归通过。",
+      "reference": "npm run verify"
+    }
+  ],
+  "deliverables": [
+    {
+      "kind": "source",
+      "path": "assets/app/game/profile/PuzzleProfileManager.ts",
+      "requiredFor": ["runnable", "test"]
+    },
+    {
+      "kind": "source",
+      "path": "assets/app/game/profile/PuzzleAvatarCatalog.ts",
+      "requiredFor": ["runnable", "test"]
+    },
+    {
+      "kind": "source",
+      "path": "assets/app/ui/popup/UIProfilePanel.ts",
+      "requiredFor": ["runnable", "test"]
+    },
+    {
+      "kind": "prefab",
+      "path": "assets/resources/prefabs/popup/UIProfilePanel.prefab",
+      "requiredFor": ["runnable", "test"]
+    },
+    {
+      "kind": "prefab",
+      "path": "assets/resources/prefabs/item/PuzzleAvatarItem.prefab",
+      "requiredFor": ["runnable", "test"]
+    },
+    {
+      "kind": "test",
+      "path": "tools/verify-puzzle-systems.mjs",
+      "requiredFor": ["test"]
+    },
+    {
+      "kind": "document",
+      "path": "docs/PUZZLE_SYSTEM_MODULES.md",
+      "requiredFor": ["test"]
+    }
+  ]
+}

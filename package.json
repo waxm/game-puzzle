@@ -1,12 +1,14 @@
 {
     "name": "game-puzzle",
     "uuid": "dca1744f-85d1-48a0-8a60-a3662e05bafb",
+    "version": "1.0.0",
     "scripts": {
         "typecheck": "tsc --noEmit",
         "verify:core": "node tools/verify-core-managers.mjs",
         "verify:cocos-web": "node tools/verify-cocos-web-compat.mjs",
         "verify:readiness": "node tools/verify-project-readiness.mjs",
         "verify:puzzle-progress": "node tools/verify-puzzle-progress.mjs",
+        "verify:puzzle-systems": "node tools/verify-puzzle-systems.mjs",
         "generate:levels": "node tools/generate-puzzle-level-configs.mjs",
         "fix:level-imports": "node tools/generate-puzzle-level-configs.mjs --fix-import-settings",
         "validate:levels": "node tools/generate-puzzle-level-configs.mjs --check",
@@ -18,12 +20,13 @@
         "verify:puzzle-drag": "node tools/verify-puzzle-drag.mjs",
         "verify:puzzle-groups": "node tools/verify-puzzle-groups.mjs",
         "configure:scenes": "node tools/configure-scene-bindings.mjs",
-        "configure:prefabs": "node tools/configure-prefab-bindings.mjs && node tools/create-puzzle-prefabs.mjs && node tools/create-load-error-prefab.mjs",
+        "configure:prefabs": "node tools/create-system-prefabs.mjs && node tools/create-puzzle-prefabs.mjs && node tools/create-load-error-prefab.mjs",
         "generate:puzzle-prefabs": "node tools/create-puzzle-prefabs.mjs",
         "generate:load-error-prefab": "node tools/create-load-error-prefab.mjs",
+        "generate:system-prefabs": "node tools/create-system-prefabs.mjs",
         "validate:cocos": "node tools/validate-cocos-assets.mjs",
         "verify": "npm run typecheck && npm run verify:cocos-web && npm run verify:readiness && npm run verify:core && npm run verify:game && npm run validate:cocos",
-        "verify:game": "npm run verify:puzzle-progress && npm run validate:levels && npm run verify:level-editor && npm run verify:puzzle-groups && npm run verify:puzzle-drag && npm run verify:puzzle-rules && npm run verify:puzzle-controller && npm run verify:puzzle-lifecycle"
+        "verify:game": "npm run verify:puzzle-progress && npm run verify:puzzle-systems && npm run validate:levels && npm run verify:level-editor && npm run verify:puzzle-groups && npm run verify:puzzle-drag && npm run verify:puzzle-rules && npm run verify:puzzle-controller && npm run verify:puzzle-lifecycle"
     },
     "creator": {
         "version": "3.8.4"

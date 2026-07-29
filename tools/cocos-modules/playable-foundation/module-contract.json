@@ -102,6 +102,16 @@
       "sources": [
         "user-readiness-request"
       ]
+    },
+    {
+      "id": "creator-physics-material-compatibility",
+      "confidence": "confirmed",
+      "impact": "build",
+      "statement": "保留轻量 physics-builtin，使 Creator 3.8.4 能反序列化内置默认 PhysicsMaterial；拼图玩法不使用物理模拟。",
+      "sources": [
+        "existing-project",
+        "project-rules"
+      ]
     }
   ],
   "openQuestions": [],
@@ -244,7 +254,7 @@
       },
       {
         "id": "release-size",
-        "title": "非 Debug Web 包不再包含未使用的物理、Spine、地形和视频模块",
+        "title": "非 Debug Web 包不再包含重型物理、Spine、地形和视频模块",
         "status": "passed",
         "sources": [
           "project-rules"

@@ -1,0 +1,334 @@
+{
+  "schemaVersion": 1,
+  "module": {
+    "id": "settings",
+    "title": "光影拼图设置系统",
+    "kind": "system",
+    "phase": "test-ready"
+  },
+  "capabilities": {
+    "ui": true,
+    "api": false,
+    "list": false,
+    "persistence": true,
+    "analytics": false,
+    "time": false
+  },
+  "sources": [
+    {
+      "id": "settings-requirement",
+      "kind": "requirement",
+      "status": "read",
+      "location": "用户 2026-07-29 设置模块需求"
+    },
+    {
+      "id": "project-rules",
+      "kind": "project",
+      "status": "read",
+      "location": "AGENTS.md"
+    },
+    {
+      "id": "settings-layout",
+      "kind": "design",
+      "status": "read",
+      "location": "用户指定右上角入口、设置项顺序和底部版本号"
+    }
+  ],
+  "project": {
+    "creatorVersion": "3.8.4",
+    "designResolution": {
+      "width": 640,
+      "height": 1136
+    },
+    "orientation": "portrait"
+  },
+  "scope": {
+    "included": [
+      "大厅右上角设置入口",
+      "声音与震动持久化开关",
+      "帮助、评分、隐私和条款扩展接口",
+      "底部版本号"
+    ],
+    "excluded": [
+      "帮助中心真实内容",
+      "应用商店评分地址",
+      "隐私政策和服务条款正式链接"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "settings-storage",
+      "confidence": "confirmed",
+      "impact": "behavior",
+      "statement": "设置使用版本化 puzzle.settings 存档并在 Boot 阶段恢复。",
+      "sources": ["settings-requirement", "project-rules"]
+    },
+    {
+      "id": "external-port",
+      "confidence": "confirmed",
+      "impact": "structure",
+      "statement": "四个待补充入口共用可注入 PuzzleSettingsExternalPort，默认不执行空跳转。",
+      "sources": ["settings-requirement"]
+    }
+  ],
+  "openQuestions": [],
+  "states": ["closed", "opening", "ready", "acting", "closing"],
+  "transitions": [
+    {
+      "event": "request-open",
+      "from": "closed",
+      "to": "opening",
+      "authority": "LobbyScene"
+    },
+    {
+      "event": "prefab-opened",
+      "from": "opening",
+      "to": "ready",
+      "authority": "UIManager"
+    },
+    {
+      "event": "external-action",
+      "from": "ready",
+      "to": "acting",
+      "authority": "UISettingsPanel"
+    },
+    {
+      "event": "action-finished",
+      "from": "acting",
+      "to": "ready",
+      "authority": "PuzzleSettingsExternalPort"
+    },
+    {
+      "event": "close",
+      "from": "ready",
+      "to": "closing",
+      "authority": "UISettingsPanel"
+    },
+    {
+      "event": "closed",
+      "from": "closing",
+      "to": "closed",
+      "authority": "UIManager"
+    }
+  ],
+  "architecture": {
+    "artifacts": [
+      {
+        "id": "settings-view",
+        "role": "view",
+        "responsibility": "展示开关、扩展入口、反馈和版本号，并转发玩家输入。"
+      },
+      {
+        "id": "settings-model",
+        "role": "model",
+        "responsibility": "校验和保存版本化声音、震动设置。"
+      },
+      {
+        "id": "settings-port",
+        "role": "port",
+        "responsibility": "隔离音频、震动和待补充外部动作实现。"
+      }
+    ]
+  },
+  "interfaces": [
+    {
+      "id": "settings-external-actions",
+      "operation": "open(help|rating|privacy|terms)",
+      "required": false,
+      "implementation": "pending",
+      "sources": ["settings-requirement"]
+    }
+  ],
+  "ui": {
+    "screens": [
+      {
+        "id": "settings-screen",
+        "kind": "modal-popup",
+        "prefab": "UISettingsPanel"
+      }
+    ],
+    "lists": [],
+    "bindings": [
+      {
+        "name": "soundButton",
+        "component": "cc.Button",
+        "owner": "settings-screen",
+        "classification": "interactive",
+        "source": "puzzle.settings.soundEnabled",
+        "required": true,
+        "reason": "玩家点击后必须立即更新音频与存档。"
+      },
+      {
+        "name": "vibrationButton",
+        "component": "cc.Button",
+        "owner": "settings-screen",
+        "classification": "interactive",
+        "source": "puzzle.settings.vibrationEnabled",
+        "required": true,
+        "reason": "玩家点击后必须更新平台反馈设置。"
+      },
+      {
+        "name": "versionLabel",
+        "component": "cc.Label",
+        "owner": "settings-screen",
+        "classification": "dynamic",
+        "source": "PuzzleAppInfo.Version",
+        "required": true,
+        "reason": "版本号由项目配置统一提供。"
+      }
+    ],
+    "actions": [
+      {
+        "id": "toggle-sound",
+        "owner": "settings-screen",
+        "trigger": "soundButton click",
+        "handler": "PuzzleSettingsManager.setSoundEnabled"
+      },
+      {
+        "id": "toggle-vibration",
+        "owner": "settings-screen",
+        "trigger": "vibrationButton click",
+        "handler": "PuzzleSettingsManager.setVibrationEnabled"
+      },
+      {
+        "id": "open-external",
+        "owner": "settings-screen",
+        "trigger": "help/rating/privacy/terms click",
+        "handler": "PuzzleSettingsManager.openExternalAction"
+      }
+    ],
+    "visualStates": [
+      {
+        "id": "settings-enabled",
+        "owner": "settings-screen",
+        "description": "绿色轨道、白色圆点位于右侧并显示开。"
+      },
+      {
+        "id": "settings-disabled",
+        "owner": "settings-screen",
+        "description": "灰色轨道、白色圆点位于左侧并显示关。"
+      },
+      {
+        "id": "settings-interface-pending",
+        "owner": "settings-screen",
+        "description": "未接入的外部动作在面板内显示明确提示。"
+      }
+    ]
+  },
+  "acceptance": {
+    "cases": [
+      {
+        "id": "settings-defaults",
+        "title": "首次启动声音和震动默认开启",
+        "status": "passed",
+        "sources": ["settings-requirement"]
+      },
+      {
+        "id": "settings-persistence",
+        "title": "切换开关后刷新页面仍恢复原状态",
+        "status": "passed",
+        "sources": ["settings-requirement", "project-rules"]
+      },
+      {
+        "id": "settings-external-pending",
+        "title": "待接入口不跳空地址并显示预留反馈",
+        "status": "passed",
+        "sources": ["settings-requirement"]
+      },
+      {
+        "id": "settings-version",
+        "title": "设置页底部显示 v1.0.0",
+        "status": "passed",
+        "sources": ["settings-layout"]
+      }
+    ],
+    "gates": [
+      { "id": "contract", "status": "passed" },
+      { "id": "static", "status": "passed" },
+      { "id": "creator-import", "status": "passed" },
+      { "id": "visual", "status": "passed" },
+      { "id": "functional-smoke", "status": "passed" },
+      { "id": "functional", "status": "passed" },
+      { "id": "api", "status": "unverified" },
+      { "id": "lifecycle", "status": "passed" },
+      { "id": "regression", "status": "passed" }
+    ]
+  },
+  "evidence": [
+    {
+      "gate": "contract",
+      "type": "command",
+      "result": "模块合同通过 test 目标校验。",
+      "reference": "validate-module-contract.mjs --target test"
+    },
+    {
+      "gate": "static",
+      "type": "command",
+      "result": "严格 TypeScript 与项目完整校验通过。",
+      "reference": "npm run typecheck && npm run verify"
+    },
+    {
+      "gate": "creator-import",
+      "type": "creator",
+      "result": "Creator 3.8.4 重新导入并打开设置面板，根节点和声音开关 Inspector 检查无序列化、缺失脚本或绑定错误。",
+      "reference": "2026-07-29 本轮 Creator Prefab 打开与节点树检查"
+    },
+    {
+      "gate": "visual",
+      "type": "visual",
+      "result": "宽屏 iframe 下弹窗、开关、动作行和版本号完整可见。",
+      "reference": "本轮浏览器设置弹窗截图"
+    },
+    {
+      "gate": "functional-smoke",
+      "type": "manual",
+      "result": "大厅入口、开关、预留入口和关闭流程均可操作。",
+      "reference": "本轮浏览器交互冒烟"
+    },
+    {
+      "gate": "functional",
+      "type": "automation",
+      "result": "设置默认值、损坏恢复、音频、震动和扩展口测试通过。",
+      "reference": "npm run verify:puzzle-systems"
+    },
+    {
+      "gate": "lifecycle",
+      "type": "automation",
+      "result": "面板关闭使异步动作失效并注销全部按钮事件。",
+      "reference": "UISettingsPanel.onClose + npm run verify"
+    },
+    {
+      "gate": "regression",
+      "type": "command",
+      "result": "完整项目回归通过。",
+      "reference": "npm run verify"
+    }
+  ],
+  "deliverables": [
+    {
+      "kind": "source",
+      "path": "assets/app/game/settings/PuzzleSettingsManager.ts",
+      "requiredFor": ["runnable", "test"]
+    },
+    {
+      "kind": "source",
+      "path": "assets/app/ui/popup/UISettingsPanel.ts",
+      "requiredFor": ["runnable", "test"]
+    },
+    {
+      "kind": "prefab",
+      "path": "assets/resources/prefabs/popup/UISettingsPanel.prefab",
+      "requiredFor": ["runnable", "test"]
+    },
+    {
+      "kind": "test",
+      "path": "tools/verify-puzzle-systems.mjs",
+      "requiredFor": ["test"]
+    },
+    {
+      "kind": "document",
+      "path": "docs/PUZZLE_SYSTEM_MODULES.md",
+      "requiredFor": ["test"]
+    }
+  ]
+}

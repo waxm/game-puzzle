@@ -72,34 +72,27 @@ try {
     "custom-pipeline",
     "gfx-webgl",
     "intersection-2d",
+    "physics-builtin",
     "primitive",
     "tween",
     "ui",
   ];
-  const forbiddenEngineModules = [
-    "dragon-bones",
-    "particle",
-    "physics-2d-box2d",
-    "physics-ammo",
-    "spine",
-    "terrain",
-    "video",
-    "webview",
-  ];
-  for (const moduleName of requiredEngineModules) {
-    assert.equal(
-      includedEngineModules.includes(moduleName),
-      true,
-      `发布所需引擎模块未启用：${moduleName}`,
-    );
-  }
-  for (const moduleName of forbiddenEngineModules) {
-    assert.equal(
-      includedEngineModules.includes(moduleName),
-      false,
-      `纯 2D 拼图不应携带未使用引擎模块：${moduleName}`,
-    );
-  }
+  assert.deepEqual(
+    [...includedEngineModules].sort(),
+    [...requiredEngineModules].sort(),
+    "引擎功能列表必须严格保持为当前拼图所需模块，防止 Creator 自动带回默认全集。",
+  );
+  const engineModuleCache = engineSettings.modules?.cache ?? {};
+  assert.deepEqual(
+    engineModuleCache.physics,
+    { _value: true, _option: "physics-builtin" },
+    "必须显式选择轻量内置 3D 物理后端，确保 Creator 可反序列化默认 PhysicsMaterial。",
+  );
+  assert.deepEqual(
+    engineModuleCache["physics-builtin"],
+    { _value: true },
+    "Creator 引擎模块缓存必须启用 physics-builtin。",
+  );
 
   const sceneNames = Object.values(PuzzleSceneName);
   assert.equal(

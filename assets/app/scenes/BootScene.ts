@@ -15,6 +15,8 @@ import {
     PuzzleUIConfig,
     PuzzleUIName,
 } from "../game/PuzzleGameKey";
+import { PuzzleProfileManager } from "../game/profile/PuzzleProfileManager";
+import { PuzzleSettingsManager } from "../game/settings/PuzzleSettingsManager";
 
 const { ccclass } = _decorator;
 
@@ -44,6 +46,8 @@ export class BootScene extends SceneBase {
         );
         super.onEnter();
         App.init(PUZZLE_APP_INIT_OPTIONS);
+        PuzzleSettingsManager.initialize();
+        PuzzleProfileManager.initialize();
         Logger.info("进入启动场景。");
         this.prepareLoadErrorPanel();
         this.runAsyncTask(this.enterNextScene(), "进入大厅场景");

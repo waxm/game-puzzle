@@ -1,8 +1,12 @@
-import { _decorator, Button, Label } from "cc";
+import { _decorator, Button, Color, Graphics, Label } from "cc";
 import { EventCenter } from "../../core/event/EventCenter";
 import { UIBase } from "../../core/ui/UIBase";
 import { Logger } from "../../core/utils/Logger";
 import { GameEvent, GameStartRequest } from "../../game/GameEvent";
+import { PuzzleSystemEvent } from "../../game/PuzzleSystemEvent";
+import { getPuzzleAvatar } from "../../game/profile/PuzzleAvatarCatalog";
+import type { PuzzleProfileData } from "../../game/profile/PuzzleProfileManager";
+import { PuzzleAvatarRenderer } from "../common/PuzzleAvatarRenderer";
 
 /** 打开首页面板时传入的拼图进度摘要。 */
 export interface UIHomePanelOpenParams {
@@ -14,6 +18,9 @@ export interface UIHomePanelOpenParams {
 
     /** 当前资源目录中的关卡总数。 */
     totalCount: number;
+
+    /** 大厅左上角展示的当前玩家资料。 */
+    profile: PuzzleProfileData;
 }
 
 const { ccclass, property } = _decorator;
@@ -41,6 +48,26 @@ export class UIHomePanel extends UIBase {
     @property({ type: Label })
     public tipLabel: Label | null = null;
 
+    /** 左上角玩家资料入口。 */
+    @property({ type: Button })
+    public profileButton: Button | null = null;
+
+    /** 左上角当前头像。 */
+    @property({ type: PuzzleAvatarRenderer })
+    public profileAvatarRenderer: PuzzleAvatarRenderer | null = null;
+
+    /** 左上角当前玩家名称。 */
+    @property({ type: Label })
+    public profileNameLabel: Label | null = null;
+
+    /** 右上角设置入口。 */
+    @property({ type: Button })
+    public settingsButton: Button | null = null;
+
+    /** 设置入口圆形底板。 */
+    @property({ type: Graphics })
+    public settingsButtonGraphics: Graphics | null = null;
+
     /** 是否已经注册按钮事件。 */
     private _eventsBound = false;
 
@@ -54,7 +81,13 @@ export class UIHomePanel extends UIBase {
             startButton: this.startButton,
             startButtonLabel: this.startButtonLabel,
             tipLabel: this.tipLabel,
+            profileButton: this.profileButton,
+            profileAvatarRenderer: this.profileAvatarRenderer,
+            profileNameLabel: this.profileNameLabel,
+            settingsButton: this.settingsButton,
+            settingsButtonGraphics: this.settingsButtonGraphics,
         });
+        this.drawSettingsButton();
         this.bindEvents();
     }
 
@@ -68,6 +101,7 @@ export class UIHomePanel extends UIBase {
         this.tipLabel!.string =
             `已完成 ${homeParams.completedCount} / ${homeParams.totalCount}，` +
             `当前挑战第 ${homeParams.targetLevel} 关`;
+        this.setProfile(homeParams.profile);
         this.bindEvents();
         Logger.info("打开首页面板。", params);
     }
@@ -91,6 +125,16 @@ export class UIHomePanel extends UIBase {
             this.onClickStart,
             this,
         );
+        this.profileButton!.node.on(
+            Button.EventType.CLICK,
+            this.onClickProfile,
+            this,
+        );
+        this.settingsButton!.node.on(
+            Button.EventType.CLICK,
+            this.onClickSettings,
+            this,
+        );
     }
 
     /** 注销首页按钮事件。 */
@@ -105,6 +149,16 @@ export class UIHomePanel extends UIBase {
             this.onClickStart,
             this,
         );
+        this.profileButton!.node.off(
+            Button.EventType.CLICK,
+            this.onClickProfile,
+            this,
+        );
+        this.settingsButton!.node.off(
+            Button.EventType.CLICK,
+            this.onClickSettings,
+            this,
+        );
     }
 
     /** 校验大厅传入的进度摘要，避免首页展示错误存档状态。 */
@@ -114,13 +168,15 @@ export class UIHomePanel extends UIBase {
             typeof params !== "object" ||
             !("targetLevel" in params) ||
             !("completedCount" in params) ||
-            !("totalCount" in params)
+            !("totalCount" in params) ||
+            !("profile" in params)
         ) {
             throw new Error("打开 UIHomePanel 时必须传入关卡进度参数。");
         }
         const targetLevel = params.targetLevel;
         const completedCount = params.completedCount;
         const totalCount = params.totalCount;
+        const profile = params.profile;
         if (
             typeof targetLevel !== "number" ||
             !Number.isInteger(targetLevel) ||
@@ -131,7 +187,15 @@ export class UIHomePanel extends UIBase {
             targetLevel <= 0 ||
             completedCount < 0 ||
             totalCount <= 0 ||
-            completedCount > totalCount
+            completedCount > totalCount ||
+            !profile ||
+            typeof profile !== "object" ||
+            !("version" in profile) ||
+            !("name" in profile) ||
+            !("avatarId" in profile) ||
+            profile.version !== 1 ||
+            typeof profile.name !== "string" ||
+            typeof profile.avatarId !== "string"
         ) {
             throw new Error("UIHomePanel 收到的关卡进度参数无效。");
         }
@@ -139,6 +203,11 @@ export class UIHomePanel extends UIBase {
             targetLevel,
             completedCount,
             totalCount,
+            profile: {
+                version: 1,
+                name: profile.name,
+                avatarId: profile.avatarId,
+            },
         };
     }
 
@@ -151,5 +220,33 @@ export class UIHomePanel extends UIBase {
     /** 场景切换期间锁定开始按钮，失败恢复后允许玩家再次操作。 */
     public setStartInteractable(interactable: boolean): void {
         this.startButton!.interactable = interactable;
+    }
+
+    /** 刷新大厅左上角当前头像和玩家名称。 */
+    public setProfile(profile: PuzzleProfileData): void {
+        this.profileAvatarRenderer!.render(
+            getPuzzleAvatar(profile.avatarId),
+            72,
+            false,
+        );
+        this.profileNameLabel!.string = profile.name;
+    }
+
+    /** 打开头像资料弹窗。 */
+    private onClickProfile(): void {
+        EventCenter.emit(PuzzleSystemEvent.ProfileOpenRequested);
+    }
+
+    /** 打开设置弹窗。 */
+    private onClickSettings(): void {
+        EventCenter.emit(PuzzleSystemEvent.SettingsOpenRequested);
+    }
+
+    /** 绘制设置按钮底板。 */
+    private drawSettingsButton(): void {
+        this.settingsButtonGraphics!.clear();
+        this.settingsButtonGraphics!.fillColor = new Color(37, 47, 64, 235);
+        this.settingsButtonGraphics!.circle(0, 0, 38);
+        this.settingsButtonGraphics!.fill();
     }
 }

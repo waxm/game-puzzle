@@ -40,12 +40,12 @@
 
 每次增加系统模块后都要复测包体、首屏、DrawCall 和内存。没有真机或性能面板证据时，只记录“待测”，不得写成“通过”。
 
-Creator 3.8.4 的 `SpriteFrame` 激活流程仍会使用 3D 基础模块中的 `createMesh`，场景全局初始化还会使用 `primitive.box`，因此不能彻底移除 `3d` 和 `primitive`。当前裁剪只排除已经通过发布冒烟确认不需要的物理、Spine、龙骨、地形、粒子、视频和 WebView 等模块。
+Creator 3.8.4 的 `SpriteFrame` 激活流程仍会使用 3D 基础模块中的 `createMesh`，场景全局初始化还会使用 `primitive.box`，因此不能彻底移除 `3d` 和 `primitive`。Creator 内置默认材质还会反序列化 `PhysicsMaterial`，所以保留轻量的 `physics-builtin` 作为编辑器兼容后端；拼图玩法本身不使用物理模拟。当前裁剪继续排除 Bullet/Ammo、Cannon、PhysX、2D 物理、Spine、龙骨、地形、粒子、视频和 WebView 等模块。
 
 ## 本轮实测结果
 
 - Cocos Creator `3.8.4` 已完成 `web-mobile`、`debug=false` 构建，构建日志明确记录 `build success`。
-- 发布目录文件净大小为 `4,665,905` 字节，磁盘占用约 `5.7 MiB`；引擎脚本为 `1,865,187` 字节。发布包未重新带回 Bullet、Spine、龙骨、地形、粒子、视频和 WebView。
+- 发布目录文件净大小为 `4,665,905` 字节，磁盘占用约 `5.7 MiB`；引擎脚本为 `1,865,187` 字节。该数据来自引入 `physics-builtin` 兼容后端前的历史构建，本轮未重新打包；后续发布时需复测包体。发布配置仍不包含 Bullet/Ammo、Cannon、PhysX、2D 物理、Spine、龙骨、地形、粒子、视频和 WebView。
 - `1280 × 720` 宽屏已跑通 `Boot -> Lobby -> Game -> Lobby`，首页、顶部状态、棋盘、底部道具和操作提示完整可见。
 - `375 × 667` 短屏与 `430 × 932` 长屏均实测了 Lobby 和 Game，完整设计区域可见，无上下裁切。
 - 最终发布包在上述流程和尺寸下，页面控制台 `warning/error` 数量均为 `0`。

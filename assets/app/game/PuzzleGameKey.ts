@@ -7,6 +7,12 @@ export const PuzzleDisplayConfig = {
   Height: 1136,
 } as const;
 
+/** 拼图应用展示信息。 */
+export const PuzzleAppInfo = {
+  /** 设置页展示的正式版本号，必须与 package.json 保持一致。 */
+  Version: "1.0.0",
+} as const;
+
 /** 拼图正式场景名称，场景切换和入口声明必须统一引用。 */
 export const PuzzleSceneName = {
   /** 框架初始化场景。 */
@@ -32,6 +38,12 @@ export const PuzzleUIName = {
 
   /** 场景加载失败时使用的通用恢复弹窗。 */
   LoadError: "UILoadErrorPanel",
+
+  /** 大厅设置弹窗。 */
+  Settings: "UISettingsPanel",
+
+  /** 玩家头像与名称编辑弹窗。 */
+  Profile: "UIProfilePanel",
 } as const;
 
 /** 拼图业务 UI 的稳定注册配置。 */
@@ -63,6 +75,20 @@ export const PuzzleUIConfig = {
     path: "prefabs/common/UILoadErrorPanel",
     cache: false,
   },
+
+  /** 大厅设置弹窗配置。 */
+  Settings: {
+    name: PuzzleUIName.Settings,
+    path: "prefabs/popup/UISettingsPanel",
+    cache: true,
+  },
+
+  /** 玩家头像与名称编辑弹窗配置。 */
+  Profile: {
+    name: PuzzleUIName.Profile,
+    path: "prefabs/popup/UIProfilePanel",
+    cache: true,
+  },
 } as const;
 
 /** 拼图业务的本地存档键；StorageManager 还会追加项目独立前缀。 */
@@ -72,16 +98,28 @@ export const PuzzleStorageKey = {
 
   /** 旧发布包使用的进度键，仅供一次性迁移。 */
   LegacyProgress: "puzzleProgress",
+
+  /** 版本化声音与震动设置。 */
+  Settings: "puzzle.settings",
+
+  /** 版本化玩家名称与头像资料。 */
+  Profile: "puzzle.profile",
 } as const;
 
 /** 拼图业务使用的具名对象池，集中定义以避免散落匿名字符串。 */
 export const PuzzlePoolName = {
   /** 运行中的单块拼图节点池。 */
   Piece: "puzzle.piece",
+
+  /** 头像选择列表项。 */
+  AvatarItem: "puzzle.avatar-item",
 } as const;
 
 /** 拼图业务通过资源管理器动态加载的稳定路径。 */
 export const PuzzleResourcePath = {
   /** 单块拼图 Prefab，不带扩展名。 */
   PiecePrefab: "prefabs/game/PuzzlePiece",
+
+  /** 头像选择列表项 Prefab，不带扩展名。 */
+  AvatarItemPrefab: "prefabs/item/PuzzleAvatarItem",
 } as const;
