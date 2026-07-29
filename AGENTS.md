@@ -188,3 +188,17 @@ UI 代码、Prefab 和 Texture 继续使用同一套现有模块名：
 - 原因：拼图仓库已经按规则、进度、UI 模块、Prefab 类型和关卡资源建立稳定路径，迁移会无收益地改变大量 UUID 与动态加载路径。
 - 替代实现：继续遵守上方模块表和现有 game 子目录职责，不允许新增内容重新堆回根目录。
 - 验证方式：执行 `npm run verify:game`、`npm run validate:cocos` 和完整预览。
+
+<!-- COCOS_WORKFLOW_RULES_START -->
+## 跨电脑开发工作流
+
+- Creator 操作前必须先执行会话检测；目标项目已打开时复用现有 Creator，禁止重复启动。
+- 目标项目未打开时必须从 Cocos Dashboard 进入，不直接运行 Creator 可执行文件。
+- 预览必须按动态发现的 URL 复用已有 Chrome 标签；只有不存在对应标签时才允许新建。
+- 错误排查优先读取本次操作后的编辑器日志增量和浏览器 Console；截图只用于布局、颜色、遮挡等视觉问题。
+- 连续两次修复未改变首个错误时必须停止当前假设并重新定位，禁止继续叠加试探补丁。
+- 开发内循环使用 `npm run verify:changed`，模块检查点使用 `npm run verify:module -- <module-id>`，提交前才执行完整 `npm run verify`。
+- 开发阶段默认只做本地类型、规则、资源、Creator 导入和预览验证。只有用户明确提出构建、打包、发布或上线验收时，才允许执行任何平台构建。
+- Git 提交主题必须使用中文记录，并通过项目内 `commit-msg` 钩子校验。
+- 工作流配置不得提交用户绝对路径、固定 PID、固定预览端口、浏览器标签 ID 或其他单机状态。
+<!-- COCOS_WORKFLOW_RULES_END -->

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "workflowVersion": "1.0.0",
+  "creator": {
+    "version": "3.8.4",
+    "launchPolicy": "dashboard-only",
+    "reuseOpenedProject": true
+  },
+  "preview": {
+    "reuseExistingBrowserTab": true,
+    "createTabOnlyWhenMissing": true,
+    "consoleFirst": true,
+    "screenshotOnlyForVisualIssues": true
+  },
+  "logs": {
+    "editor": "temp/logs/project.log",
+    "programming": "temp/programming/packer-driver/logs/debug.log",
+    "assetDbDirectory": "temp/asset-db/log",
+    "builderDirectory": "temp/builder/log"
+  },
+  "validation": {
+    "developmentBuildPolicy": "explicit-only",
+    "precommitScript": "verify",
+    "moduleFailureReassessmentLimit": 2
+  },
+  "componentRules": "tools/cocos-workflow/component-rules/3.8.4.json",
+  "modules": {
+    "puzzle": [
+      "typecheck",
+      "verify:game",
+      "validate:cocos",
+      "workflow:verify"
+    ],
+    "profile-avatar": [
+      "typecheck",
+      "verify:puzzle-systems",
+      "validate:cocos",
+      "workflow:verify"
+    ],
+    "settings": [
+      "typecheck",
+      "verify:puzzle-systems",
+      "validate:cocos",
+      "workflow:verify"
+    ]
+  }
+}

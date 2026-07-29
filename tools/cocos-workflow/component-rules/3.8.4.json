@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "creatorVersion": "3.8.4",
+  "exclusiveGroups": [
+    {
+      "id": "ui-renderer",
+      "description": "同一节点最多只能挂载一个 2D UI 渲染组件。",
+      "max": 1,
+      "types": [
+        "cc.Graphics",
+        "cc.Label",
+        "cc.Mask",
+        "cc.ParticleSystem2D",
+        "cc.RichText",
+        "cc.Sprite",
+        "cc.TiledMap",
+        "cc.UIMeshRenderer",
+        "cc.UIStaticBatch"
+      ]
+    }
+  ],
+  "singletons": [
+    "cc.BlockInputEvents",
+    "cc.Button",
+    "cc.Canvas",
+    "cc.EditBox",
+    "cc.Layout",
+    "cc.PageView",
+    "cc.ProgressBar",
+    "cc.SafeArea",
+    "cc.ScrollView",
+    "cc.Slider",
+    "cc.Toggle",
+    "cc.ToggleContainer",
+    "cc.UIOpacity",
+    "cc.UITransform",
+    "cc.Widget"
+  ],
+  "requirements": {
+    "cc.Button": [
+      "cc.UITransform"
+    ],
+    "cc.EditBox": [
+      "cc.UITransform",
+      "cc.Sprite"
+    ],
+    "cc.Graphics": [
+      "cc.UITransform"
+    ],
+    "cc.Label": [
+      "cc.UITransform"
+    ],
+    "cc.LabelOutline": [
+      "cc.Label"
+    ],
+    "cc.LabelShadow": [
+      "cc.Label"
+    ],
+    "cc.Mask": [
+      "cc.UITransform"
+    ],
+    "cc.RichText": [
+      "cc.UITransform"
+    ],
+    "cc.Sprite": [
+      "cc.UITransform"
+    ]
+  },
+  "forbiddenPairs": [
+    [
+      "cc.EditBox",
+      "cc.Graphics"
+    ],
+    [
+      "cc.EditBox",
+      "cc.Label"
+    ],
+    [
+      "cc.EditBox",
+      "cc.Mask"
+    ],
+    [
+      "cc.EditBox",
+      "cc.ParticleSystem2D"
+    ],
+    [
+      "cc.EditBox",
+      "cc.RichText"
+    ],
+    [
+      "cc.EditBox",
+      "cc.TiledMap"
+    ],
+    [
+      "cc.EditBox",
+      "cc.UIMeshRenderer"
+    ],
+    [
+      "cc.EditBox",
+      "cc.UIStaticBatch"
+    ]
+  ]
+}

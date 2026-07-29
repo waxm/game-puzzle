@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "repository": "git@github.com:waxm/cocos-game-framework.git",
+  "branch": "dev",
+  "commit": "0a8ec32a06ffb61b67322b2d13ee9fc3624126d4",
+  "workflowVersion": "1.0.0",
+  "creatorVersion": "3.8.4",
+  "syncedAt": "2026-07-29T07:32:15.485Z"
+}

@@ -1,0 +1,2 @@
+#!/bin/sh
+node tools/cocos-workflow/verify-commit-message.mjs "$1"

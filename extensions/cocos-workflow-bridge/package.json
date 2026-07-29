@@ -1,0 +1,30 @@
+{
+  "name": "cocos-workflow-bridge",
+  "version": "1.0.0",
+  "package_version": 2,
+  "description": "为跨电脑开发工作流提供 Creator 会话和组件挂载检查。",
+  "author": "waxm",
+  "editor": ">=3.8.4",
+  "main": "./main.js",
+  "contributions": {
+    "scene": {
+      "script": "./scene.js"
+    },
+    "messages": {
+      "status": {
+        "methods": [
+          "status"
+        ],
+        "public": true,
+        "description": "读取当前 Creator 项目会话状态。"
+      },
+      "validate-active-scene": {
+        "methods": [
+          "validateActiveScene"
+        ],
+        "public": true,
+        "description": "校验当前场景节点的组件依赖和互斥关系。"
+      }
+    }
+  }
+}
