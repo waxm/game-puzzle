@@ -357,13 +357,17 @@ export class UIGamePanel extends UIBase {
       !("levelConfig" in params) ||
       !params.levelConfig ||
       !("controller" in params) ||
-      !(params.controller instanceof PuzzleGameController)
+      !(params.controller instanceof PuzzleGameController) ||
+      params.levelConfig !== params.controller.levelConfig
     ) {
       throw new Error(
-        "打开 UIGamePanel 时必须传入 levelConfig 和 PuzzleGameController。",
+        "打开 UIGamePanel 时必须传入同一关卡的配置和 PuzzleGameController。",
       );
     }
-    return params as UIGamePanelOpenParams;
+    return {
+      levelConfig: params.controller.levelConfig,
+      controller: params.controller,
+    };
   }
 
   /** 根据当前关卡配置准备切片尺寸和网格规则。 */

@@ -158,17 +158,41 @@ export class UIResultPanel extends UIBase {
 
   /** 校验 UIManager 传入的结算参数。 */
   private readOpenParams(params: unknown): UIResultPanelOpenParams {
-    if (!params || typeof params !== "object" || !("mode" in params)) {
+    if (
+      !params ||
+      typeof params !== "object" ||
+      !("mode" in params) ||
+      !("level" in params) ||
+      !("nextLevel" in params) ||
+      !("allCompleted" in params)
+    ) {
       throw new Error("打开 UIResultPanel 时必须传入完整结算参数。");
     }
-    const result = params as UIResultPanelOpenParams;
+    const mode = params.mode;
+    const level = params.level;
+    const nextLevel = params.nextLevel;
+    const allCompleted = params.allCompleted;
     if (
-      (result.mode !== "success" && result.mode !== "failure") ||
-      !Number.isInteger(result.level)
+      (mode !== "success" && mode !== "failure") ||
+      typeof level !== "number" ||
+      !Number.isInteger(level) ||
+      level <= 0 ||
+      (nextLevel !== null &&
+        (typeof nextLevel !== "number" ||
+          !Number.isInteger(nextLevel) ||
+          nextLevel <= 0)) ||
+      typeof allCompleted !== "boolean" ||
+      (mode === "failure" && (nextLevel !== null || allCompleted)) ||
+      (mode === "success" && allCompleted !== (nextLevel === null))
     ) {
       throw new Error("UIResultPanel 收到的结算参数无效。");
     }
-    return result;
+    return {
+      mode,
+      level,
+      nextLevel,
+      allCompleted,
+    };
   }
 
   /** 根据结算模式设置标题、说明和主按钮操作文案。 */

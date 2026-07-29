@@ -25,6 +25,7 @@ const compiledApp = compileAppFilesForTest(projectRoot, cocosMockPath, [
   "game/config/PuzzleLevelConfig.ts",
   "game/config/PuzzleLevelCatalog.generated.ts",
   "game/config/PuzzleLevelConfigLoader.ts",
+  "game/PuzzleGameKey.ts",
   "game/progress/PuzzleProgressManager.ts",
   "game/progress/PuzzleLevelSession.ts",
 ]);
@@ -39,6 +40,7 @@ const [
   { ResManager },
   levelConfig,
   { PuzzleLevelConfigLoader },
+  { PuzzleStorageKey },
   progressModule,
   sessionModule,
 ] = await Promise.all([
@@ -47,6 +49,7 @@ const [
   compiledApp.importModule("core/resource/ResManager.ts"),
   compiledApp.importModule("game/config/PuzzleLevelConfig.ts"),
   compiledApp.importModule("game/config/PuzzleLevelConfigLoader.ts"),
+  compiledApp.importModule("game/PuzzleGameKey.ts"),
   compiledApp.importModule("game/progress/PuzzleProgressManager.ts"),
   compiledApp.importModule("game/progress/PuzzleLevelSession.ts"),
 ]);
@@ -148,10 +151,10 @@ test("首次启动至少解锁第一关并通过 JSON 加载进入大厅", async
   assert.equal(asset.refCount, 0, "JsonAsset 数据取出后必须立即归还引用。");
 });
 
-test("旧发布包写入的空解锁存档会自动修复并回写", async () => {
+test("旧发布包的进度键会迁移、修复并移除", async () => {
   const firstLevel = PuzzleLevelNumbers[0];
   registerValidLevel(firstLevel);
-  StorageManager.set("puzzleProgress", {
+  StorageManager.set(PuzzleStorageKey.LegacyProgress, {
     version: 1,
     completedLevels: [],
     unlockedLevels: [],
@@ -159,7 +162,11 @@ test("旧发布包写入的空解锁存档会自动修复并回写", async () =>
 
   const repaired = PuzzleProgressManager.getProgress();
   assert.deepEqual(repaired.unlockedLevels, [firstLevel]);
-  assert.deepEqual(StorageManager.get("puzzleProgress", null), repaired);
+  assert.equal(StorageManager.has(PuzzleStorageKey.LegacyProgress), false);
+  assert.deepEqual(
+    StorageManager.get(PuzzleStorageKey.Progress, null),
+    repaired,
+  );
   assert.equal(
     (await PuzzleLevelSession.selectHighestUnlockedLevel()).level,
     firstLevel,
@@ -168,7 +175,7 @@ test("旧发布包写入的空解锁存档会自动修复并回写", async () =>
 
 test("异常、重复和乱序编号会归一化并补齐连续解锁", () => {
   const [firstLevel, secondLevel, thirdLevel] = PuzzleLevelNumbers;
-  StorageManager.set("puzzleProgress", {
+  StorageManager.set(PuzzleStorageKey.Progress, {
     version: 99,
     completedLevels: [secondLevel, firstLevel, firstLevel, -1, "1"],
     unlockedLevels: [thirdLevel, secondLevel, secondLevel, 999999],
@@ -180,7 +187,29 @@ test("异常、重复和乱序编号会归一化并补齐连续解锁", () => {
     completedLevels: [firstLevel, secondLevel],
     unlockedLevels: [firstLevel, secondLevel, thirdLevel],
   });
-  assert.deepEqual(StorageManager.get("puzzleProgress", null), normalized);
+  assert.deepEqual(
+    StorageManager.get(PuzzleStorageKey.Progress, null),
+    normalized,
+  );
+});
+
+test("损坏的当前进度 JSON 会被默认进度覆盖", () => {
+  const firstLevel = PuzzleLevelNumbers[0];
+  cocos.sys.localStorage.setItem(
+    `${storagePrefix}:${PuzzleStorageKey.Progress}`,
+    "{invalid-json",
+  );
+
+  const repaired = PuzzleProgressManager.getProgress();
+  assert.deepEqual(repaired, {
+    version: 1,
+    completedLevels: [],
+    unlockedLevels: [firstLevel],
+  });
+  assert.deepEqual(
+    StorageManager.get(PuzzleStorageKey.Progress, null),
+    repaired,
+  );
 });
 
 test("通关后解锁下一关，重复结算和重载不会产生重复记录", async () => {
@@ -210,7 +239,7 @@ test("非连续关卡编号和最后一关结算保持目录顺序", () => {
   const lastLevel = PuzzleLevelNumbers.at(-1);
   assert.notEqual(penultimateLevel, undefined);
   assert.notEqual(lastLevel, undefined);
-  StorageManager.set("puzzleProgress", {
+  StorageManager.set(PuzzleStorageKey.Progress, {
     version: 1,
     completedLevels: [],
     unlockedLevels: [penultimateLevel],
@@ -283,7 +312,7 @@ test("后发选择生效后延迟完成的旧选择会失效并释放 JsonAsset"
   const lastLevel = PuzzleLevelNumbers.at(-1);
   assert.notEqual(penultimateLevel, undefined);
   assert.notEqual(lastLevel, undefined);
-  StorageManager.set("puzzleProgress", {
+  StorageManager.set(PuzzleStorageKey.Progress, {
     version: 1,
     completedLevels: [],
     unlockedLevels: [penultimateLevel, lastLevel],

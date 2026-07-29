@@ -4,6 +4,7 @@ import {
   hasPuzzleLevel,
   PuzzleLevelNumbers,
 } from "../config/PuzzleLevelConfig";
+import { PuzzleStorageKey } from "../PuzzleGameKey";
 
 /** 拼图进度存档结构。 */
 export interface PuzzleProgressData {
@@ -31,22 +32,16 @@ export interface PuzzleCompletionResult {
 
 /** 拼图关卡解锁与本地进度管理器。 */
 export class PuzzleProgressManager {
-  /** 拼图进度使用的本地存档键。 */
-  private static readonly STORAGE_KEY = "puzzleProgress";
-
   /** 当前存档结构版本。 */
   private static readonly SAVE_VERSION = 1 as const;
 
   /** 读取并修正本地存档，保证至少解锁资源目录中的第一关。 */
   public static getProgress(): PuzzleProgressData {
     const defaultProgress = this.createDefaultProgress();
-    const stored = StorageManager.get<Partial<PuzzleProgressData>>(
-      this.STORAGE_KEY,
-      defaultProgress,
-    );
+    const stored = this.readStoredProgress();
     const progress = this.normalizeProgress(stored);
 
-    // 旧存档或异常数据修正后立即回写，后续业务始终读取统一结构。
+    // 缺失、旧版或异常数据修正后立即回写，后续业务始终读取统一结构。
     if (JSON.stringify(stored) !== JSON.stringify(progress)) {
       this.save(progress);
     }
@@ -113,17 +108,49 @@ export class PuzzleProgressManager {
     };
   }
 
+  /**
+   * 读取当前存档，并把旧发布包的键迁移到带业务命名空间的新键。
+   *
+   * 唯一哨兵对象可以区分“读取失败”和一份恰好等于默认值的合法存档，
+   * 从而让损坏 JSON 也能被规范化结果覆盖。
+   */
+  private static readStoredProgress(): unknown {
+    const invalidOrMissing = {};
+    if (StorageManager.has(PuzzleStorageKey.Progress)) {
+      return StorageManager.get<unknown>(
+        PuzzleStorageKey.Progress,
+        invalidOrMissing,
+      );
+    }
+    if (StorageManager.has(PuzzleStorageKey.LegacyProgress)) {
+      const legacyProgress = StorageManager.get<unknown>(
+        PuzzleStorageKey.LegacyProgress,
+        invalidOrMissing,
+      );
+      const migratedProgress = this.normalizeProgress(legacyProgress);
+      this.save(migratedProgress);
+      StorageManager.remove(PuzzleStorageKey.LegacyProgress);
+      return migratedProgress;
+    }
+    return invalidOrMissing;
+  }
+
   /** 清除无效编号，并根据已完成关卡补齐应当解锁的下一关。 */
-  private static normalizeProgress(
-    source: Partial<PuzzleProgressData> | null | undefined,
-  ): PuzzleProgressData {
+  private static normalizeProgress(source: unknown): PuzzleProgressData {
     const existingLevels = new Set<number>(PuzzleLevelNumbers);
     const completedLevels = this.normalizeLevelList(
-      source?.completedLevels,
+      source && typeof source === "object" && "completedLevels" in source
+        ? source.completedLevels
+        : undefined,
       existingLevels,
     );
     const unlockedLevels = new Set(
-      this.normalizeLevelList(source?.unlockedLevels, existingLevels),
+      this.normalizeLevelList(
+        source && typeof source === "object" && "unlockedLevels" in source
+          ? source.unlockedLevels
+          : undefined,
+        existingLevels,
+      ),
     );
 
     unlockedLevels.add(PuzzleLevelNumbers[0]);
@@ -168,7 +195,10 @@ export class PuzzleProgressManager {
 
   /** 保存独立副本，避免调用方后续修改数组影响本次写入语义。 */
   private static save(progress: PuzzleProgressData): void {
-    StorageManager.set(this.STORAGE_KEY, this.cloneProgress(progress));
+    StorageManager.set(
+      PuzzleStorageKey.Progress,
+      this.cloneProgress(progress),
+    );
   }
 
   /** 返回进度深拷贝，防止外部直接修改管理器内部数据。 */

@@ -1,0 +1,423 @@
+{
+  "schemaVersion": 1,
+  "module": {
+    "id": "playable-foundation",
+    "title": "光影拼图可玩化基础",
+    "kind": "system",
+    "phase": "test-ready"
+  },
+  "capabilities": {
+    "ui": true,
+    "api": false,
+    "list": false,
+    "persistence": true,
+    "analytics": false,
+    "time": false
+  },
+  "sources": [
+    {
+      "id": "user-readiness-request",
+      "kind": "requirement",
+      "status": "approved",
+      "location": "conversation://2026-07-29/project-readiness"
+    },
+    {
+      "id": "project-rules",
+      "kind": "project",
+      "status": "approved",
+      "location": "AGENTS.md"
+    },
+    {
+      "id": "existing-project",
+      "kind": "project",
+      "status": "read",
+      "location": "assets/app"
+    },
+    {
+      "id": "existing-ui",
+      "kind": "design",
+      "status": "read",
+      "location": "assets/resources/prefabs"
+    }
+  ],
+  "project": {
+    "creatorVersion": "3.8.4",
+    "designResolution": {
+      "width": 640,
+      "height": 1136
+    },
+    "orientation": "portrait"
+  },
+  "scope": {
+    "included": [
+      "宽屏 iframe、短屏和长屏下完整显示竖屏游戏",
+      "场景、UI、Prefab 路径和业务存档键集中注册",
+      "旧进度键迁移、损坏进度修复和运行时边界校验",
+      "未使用 Cocos 引擎模块裁剪",
+      "项目就绪自动化、性能预算和系统扩展记录"
+    ],
+    "excluded": [
+      "实现设置、音频界面、选关、教程或商业化系统",
+      "修改拼图棋盘、移动、组合、胜负和计时规则",
+      "重新设计现有 Scene、Prefab 或 Texture",
+      "改变现有关卡资源、编号或解锁顺序"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "show-all-resolution",
+      "confidence": "confirmed",
+      "impact": "behavior",
+      "statement": "Web 发布统一使用 SHOW_ALL，任何 iframe 比例都优先完整显示设计画面。",
+      "sources": [
+        "user-readiness-request",
+        "project-rules"
+      ]
+    },
+    {
+      "id": "central-runtime-registry",
+      "confidence": "confirmed",
+      "impact": "structure",
+      "statement": "正式场景、UI、Prefab 路径、对象池和存档键由 PuzzleGameKey 统一登记。",
+      "sources": [
+        "project-rules",
+        "existing-project"
+      ]
+    },
+    {
+      "id": "migrate-progress-key",
+      "confidence": "confirmed",
+      "impact": "data",
+      "statement": "旧 puzzleProgress 自动迁移到 puzzle.progress，迁移完成后移除旧键。",
+      "sources": [
+        "project-rules",
+        "existing-project"
+      ]
+    },
+    {
+      "id": "defer-system-features",
+      "confidence": "confirmed",
+      "impact": "scope",
+      "statement": "本模块只提供可扩展基础，设置、音频、选关和暂停帮助必须分别交付。",
+      "sources": [
+        "user-readiness-request"
+      ]
+    }
+  ],
+  "openQuestions": [],
+  "states": [
+    "booting",
+    "lobby-ready",
+    "game-ready",
+    "transitioning",
+    "recoverable-error",
+    "disposed"
+  ],
+  "transitions": [
+    {
+      "event": "boot-complete",
+      "from": "booting",
+      "to": "lobby-ready",
+      "authority": "BootScene"
+    },
+    {
+      "event": "start-game",
+      "from": "lobby-ready",
+      "to": "transitioning",
+      "authority": "LobbyScene"
+    },
+    {
+      "event": "game-loaded",
+      "from": "transitioning",
+      "to": "game-ready",
+      "authority": "SceneManager"
+    },
+    {
+      "event": "load-failed",
+      "from": "transitioning",
+      "to": "recoverable-error",
+      "authority": "Scene entry"
+    },
+    {
+      "event": "retry",
+      "from": "recoverable-error",
+      "to": "transitioning",
+      "authority": "UILoadErrorPanel"
+    },
+    {
+      "event": "exit",
+      "from": "game-ready",
+      "to": "disposed",
+      "authority": "GameScene"
+    }
+  ],
+  "architecture": {
+    "artifacts": [
+      {
+        "id": "runtime-key-registry",
+        "role": "config",
+        "responsibility": "集中维护场景、UI、Prefab、对象池和存档键。"
+      },
+      {
+        "id": "progress-migration",
+        "role": "persistence",
+        "responsibility": "迁移旧进度、修复损坏数据并输出规范化副本。"
+      },
+      {
+        "id": "resolution-policy",
+        "role": "platform",
+        "responsibility": "保证竖屏设计画面在任意 Web 容器中完整可见。"
+      },
+      {
+        "id": "engine-feature-profile",
+        "role": "build",
+        "responsibility": "只编译当前拼图依赖的 2D 模块和 Creator 3.8.4 SpriteFrame 所需的 3D 基础兼容层。"
+      },
+      {
+        "id": "readiness-verifier",
+        "role": "test",
+        "responsibility": "自动检查注册表、资源路径、适配策略和引擎模块边界。"
+      }
+    ]
+  },
+  "interfaces": [],
+  "ui": {
+    "screens": [
+      {
+        "id": "home",
+        "kind": "panel",
+        "prefab": "assets/resources/prefabs/home/UIHomePanel.prefab"
+      },
+      {
+        "id": "game",
+        "kind": "panel",
+        "prefab": "assets/resources/prefabs/game/UIGamePanel.prefab"
+      },
+      {
+        "id": "result",
+        "kind": "popup",
+        "prefab": "assets/resources/prefabs/popup/UIResultPanel.prefab"
+      },
+      {
+        "id": "load-error",
+        "kind": "popup",
+        "prefab": "assets/resources/prefabs/common/UILoadErrorPanel.prefab"
+      }
+    ],
+    "lists": [],
+    "bindings": [],
+    "actions": [],
+    "visualStates": [
+      {
+        "id": "contained",
+        "owner": "web-mobile",
+        "description": "完整显示 640×1136 设计区域，容器比例不一致时允许留边。"
+      }
+    ]
+  },
+  "acceptance": {
+    "cases": [
+      {
+        "id": "central-registry",
+        "title": "所有正式场景入口只通过集中注册表使用场景、UI 和 Prefab 路径",
+        "status": "passed",
+        "sources": [
+          "project-rules"
+        ]
+      },
+      {
+        "id": "progress-migration",
+        "title": "旧进度自动迁移，损坏进度自动修复",
+        "status": "passed",
+        "sources": [
+          "project-rules"
+        ]
+      },
+      {
+        "id": "responsive-web",
+        "title": "短屏、长屏和宽屏 iframe 都完整显示游戏",
+        "status": "passed",
+        "sources": [
+          "user-readiness-request",
+          "project-rules"
+        ]
+      },
+      {
+        "id": "release-size",
+        "title": "非 Debug Web 包不再包含未使用的物理、Spine、地形和视频模块",
+        "status": "passed",
+        "sources": [
+          "project-rules"
+        ]
+      },
+      {
+        "id": "main-flow",
+        "title": "Boot 到 Lobby 到 Game 再返回 Lobby 的实际流程无红错",
+        "status": "passed",
+        "sources": [
+          "project-rules"
+        ]
+      }
+    ],
+    "gates": [
+      {
+        "id": "contract",
+        "status": "passed"
+      },
+      {
+        "id": "static",
+        "status": "passed"
+      },
+      {
+        "id": "creator-import",
+        "status": "passed"
+      },
+      {
+        "id": "visual",
+        "status": "passed"
+      },
+      {
+        "id": "functional-smoke",
+        "status": "passed"
+      },
+      {
+        "id": "functional",
+        "status": "passed"
+      },
+      {
+        "id": "api",
+        "status": "passed"
+      },
+      {
+        "id": "lifecycle",
+        "status": "passed"
+      },
+      {
+        "id": "regression",
+        "status": "passed"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "gate": "contract",
+      "type": "manual",
+      "result": "用户要求在添加系统模块前整理项目并细致优化，范围限定为可扩展基础。",
+      "reference": "conversation://2026-07-29/project-readiness"
+    },
+    {
+      "gate": "functional",
+      "type": "automation",
+      "result": "既有拼图核心规则、状态机、拖拽、自动组合和生命周期测试保持不变。",
+      "reference": "tools/cocos-modules/puzzle-core/module-contract.json"
+    },
+    {
+      "gate": "static",
+      "type": "automation",
+      "result": "typecheck、项目就绪检查、核心与玩法规则测试、关卡检查和 Cocos 资源绑定验证全部通过。",
+      "reference": "npm run verify"
+    },
+    {
+      "gate": "creator-import",
+      "type": "build",
+      "result": "Cocos Creator 3.8.4 完成 web-mobile、debug=false 构建，日志记录 build success。",
+      "reference": "temp/builder/log/web-mobile7-29-2026 11-22.log"
+    },
+    {
+      "gate": "visual",
+      "type": "browser",
+      "result": "1280×720、375×667、430×932 下 Lobby 与 Game 的设计区域均完整可见。",
+      "reference": "docs/PROJECT_READINESS.md"
+    },
+    {
+      "gate": "functional-smoke",
+      "type": "browser",
+      "result": "1280×720 下 Boot -> Lobby -> Game -> Lobby 主流程通过，最终页面 warning/error 为 0。",
+      "reference": "docs/PROJECT_READINESS.md"
+    },
+    {
+      "gate": "regression",
+      "type": "automation",
+      "result": "完整 npm run verify 通过，最终发布目录文件净大小为 4,665,905 字节。",
+      "reference": "npm run verify"
+    },
+    {
+      "gate": "api",
+      "type": "manual",
+      "result": "本模块不依赖远端接口。",
+      "reference": "tools/cocos-modules/playable-foundation/module-contract.json"
+    },
+    {
+      "gate": "lifecycle",
+      "type": "automation",
+      "result": "本轮未改变核心玩法对象池和资源释放权，继续复用 puzzle-core 生命周期验证。",
+      "reference": "npm run verify:puzzle-lifecycle"
+    }
+  ],
+  "deliverables": [
+    {
+      "kind": "contract",
+      "path": "tools/cocos-modules/playable-foundation/module-contract.json",
+      "requiredFor": [
+        "contract",
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "config",
+      "path": "assets/app/game/PuzzleGameKey.ts",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "persistence",
+      "path": "assets/app/game/progress/PuzzleProgressManager.ts",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "platform",
+      "path": "settings/v2/packages/project.json",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "build",
+      "path": "settings/v2/packages/engine.json",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "automation",
+      "path": "tools/verify-project-readiness.mjs",
+      "requiredFor": [
+        "test"
+      ]
+    },
+    {
+      "kind": "migration",
+      "path": "tools/configure-scene-bindings.mjs",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "record",
+      "path": "docs/PROJECT_READINESS.md",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    }
+  ]
+}

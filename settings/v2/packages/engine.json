@@ -1,3 +1,22 @@
 {
-  "__version__": "1.0.10"
+  "__version__": "1.0.10",
+  "modules": {
+    "flags": {},
+    "includeModules": [
+      "2d",
+      "3d",
+      "audio",
+      "base",
+      "custom-pipeline",
+      "gfx-webgl",
+      "intersection-2d",
+      "primitive",
+      "tween",
+      "ui"
+    ],
+    "noDeprecatedFeatures": {
+      "value": false,
+      "version": ""
+    }
+  }
 }

@@ -9,7 +9,12 @@ import { Logger } from "../core/utils/Logger";
 import type { PuzzleLevelConfig } from "../game/config/PuzzleLevelConfig";
 import { PuzzleGameController } from "../game/controller/PuzzleGameController";
 import { GameEvent } from "../game/GameEvent";
-import { PuzzlePoolName } from "../game/PuzzleGameKey";
+import {
+    PuzzlePoolName,
+    PuzzleSceneName,
+    PuzzleUIConfig,
+    PuzzleUIName,
+} from "../game/PuzzleGameKey";
 import type { PuzzleGameState } from "../game/model/PuzzleGameState";
 import { PuzzleLevelSession } from "../game/progress/PuzzleLevelSession";
 import {
@@ -35,7 +40,7 @@ const { ccclass, property } = _decorator;
 @ccclass("GameScene")
 export class GameScene extends SceneBase {
     /** 当前场景名。 */
-    protected _sceneName = "Game";
+    protected _sceneName = PuzzleSceneName.Game;
 
     /** 当前关卡拼图控制器。 */
     private _controller: PuzzleGameController | null = null;
@@ -111,21 +116,9 @@ export class GameScene extends SceneBase {
     private registerGamePanels(): void {
         UIManager.setRoot(this.uiRoot!);
         UIManager.registerMany([
-            {
-                name: "UIGamePanel",
-                path: "prefabs/game/UIGamePanel",
-                cache: false,
-            },
-            {
-                name: "UIResultPanel",
-                path: "prefabs/popup/UIResultPanel",
-                cache: false,
-            },
-            {
-                name: "UILoadErrorPanel",
-                path: "prefabs/common/UILoadErrorPanel",
-                cache: false,
-            },
+            PuzzleUIConfig.Game,
+            PuzzleUIConfig.Result,
+            PuzzleUIConfig.LoadError,
         ]);
     }
 
@@ -141,9 +134,9 @@ export class GameScene extends SceneBase {
         this._controller?.destroy();
         this._controller = new PuzzleGameController(levelConfig);
         this._levelConfig = levelConfig;
-        UIManager.close("UIGamePanel", true);
-        UIManager.close("UIResultPanel", true);
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.Game, true);
+        UIManager.close(PuzzleUIName.Result, true);
+        UIManager.close(PuzzleUIName.LoadError, true);
         this.runAsyncTask(this.openGamePanel(levelConfig), "打开游戏主面板");
     }
 
@@ -155,7 +148,10 @@ export class GameScene extends SceneBase {
             throw new Error("打开拼图主面板前必须创建关卡控制器。");
         }
         const params: UIGamePanelOpenParams = { levelConfig, controller };
-        const result = await UIManager.open<UIGamePanel>("UIGamePanel", params);
+        const result = await UIManager.open<UIGamePanel>(
+            PuzzleUIName.Game,
+            params,
+        );
 
         if (
             !this.node.isValid ||
@@ -163,7 +159,7 @@ export class GameScene extends SceneBase {
             this._levelConfig?.level !== levelConfig.level ||
             this._controller !== controller
         ) {
-            this.disposeStalePanel("UIGamePanel", result.panel);
+            this.disposeStalePanel(PuzzleUIName.Game, result.panel);
             return;
         }
         if (result.status === "cancelled") {
@@ -249,11 +245,11 @@ export class GameScene extends SceneBase {
     ): Promise<void> {
         const requestId = ++this._resultPanelRequestId;
         const result = await UIManager.open<UIResultPanel>(
-            "UIResultPanel",
+            PuzzleUIName.Result,
             params,
         );
         if (!this.node.isValid || requestId !== this._resultPanelRequestId) {
-            this.disposeStalePanel("UIResultPanel", result.panel);
+            this.disposeStalePanel(PuzzleUIName.Result, result.panel);
             return;
         }
         if (result.status === "cancelled") {
@@ -264,9 +260,9 @@ export class GameScene extends SceneBase {
                 `结算弹窗打开失败，阶段：${result.reason ?? "unknown"}`,
                 result.error,
             );
-            UIManager.get<UIGamePanel>("UIGamePanel")?.showRecoverableError(
-                "结算界面加载失败，可以重新尝试或返回大厅",
-            );
+            UIManager.get<UIGamePanel>(
+                PuzzleUIName.Game,
+            )?.showRecoverableError("结算界面加载失败，可以重新尝试或返回大厅");
             await this.openLoadErrorPanel({
                 title: "结算界面加载失败",
                 message: "本局结果已经保留，可以重新加载结算界面。",
@@ -283,8 +279,8 @@ export class GameScene extends SceneBase {
         this._nextLevelRequestId += 1;
         this._nextLevelPreparing = false;
         PuzzleLevelSession.cancelPendingSelection();
-        UIManager.close("UIResultPanel", true);
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.Result, true);
+        UIManager.close(PuzzleUIName.LoadError, true);
     };
 
     /** 应用进入后台时仅暂停当前仍在运行的关卡，并记住本次暂停归属。 */
@@ -323,7 +319,7 @@ export class GameScene extends SceneBase {
         const requestId = ++this._nextLevelRequestId;
         this._nextLevelPreparing = true;
         this._errorPanelRequestId += 1;
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.LoadError, true);
 
         try {
             const levelConfig = await PuzzleLevelSession.selectLevel(nextLevel);
@@ -355,9 +351,9 @@ export class GameScene extends SceneBase {
                 this.node.isValid &&
                 requestId === this._nextLevelRequestId
             ) {
-                UIManager.get<UIGamePanel>("UIGamePanel")?.showRecoverableError(
-                    "下一关加载失败，请返回大厅后重试",
-                );
+                UIManager.get<UIGamePanel>(
+                    PuzzleUIName.Game,
+                )?.showRecoverableError("下一关加载失败，请返回大厅后重试");
             }
         }
     }
@@ -379,7 +375,7 @@ export class GameScene extends SceneBase {
         this._nextLevelRequestId += 1;
         this._nextLevelPreparing = false;
         PuzzleLevelSession.cancelPendingSelection();
-        const result = await SceneManager.load("Lobby");
+        const result = await SceneManager.load(PuzzleSceneName.Lobby);
         if (result.status === "loaded") {
             PuzzleLevelSession.clear();
             return;
@@ -432,13 +428,13 @@ export class GameScene extends SceneBase {
         params: UILoadErrorPanelOpenParams,
     ): Promise<boolean> {
         const requestId = ++this._errorPanelRequestId;
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.LoadError, true);
         const result = await UIManager.open<UILoadErrorPanel>(
-            "UILoadErrorPanel",
+            PuzzleUIName.LoadError,
             params,
         );
         if (!this.node.isValid || requestId !== this._errorPanelRequestId) {
-            this.disposeStalePanel("UILoadErrorPanel", result.panel);
+            this.disposeStalePanel(PuzzleUIName.LoadError, result.panel);
             return false;
         }
         if (result.status === "opened" && result.panel) {
@@ -456,7 +452,7 @@ export class GameScene extends SceneBase {
     /** 关闭加载失败弹窗并使仍在执行的旧弹窗请求失效。 */
     private closeLoadErrorPanel = (): void => {
         this._errorPanelRequestId += 1;
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.LoadError, true);
     };
 
     /** 清理由过期请求打开的面板，防止切关或离场后残留 UI。 */
@@ -488,9 +484,9 @@ export class GameScene extends SceneBase {
         this._controller = null;
         this._levelConfig = null;
         this._sceneTransitioning = false;
-        UIManager.close("UIGamePanel", true);
-        UIManager.close("UIResultPanel", true);
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.Game, true);
+        UIManager.close(PuzzleUIName.Result, true);
+        UIManager.close(PuzzleUIName.LoadError, true);
         PoolManager.clear(PuzzlePoolName.Piece, true);
         AudioManager.stopMusic();
     }

@@ -64,6 +64,11 @@ export class PuzzleGameController {
     return this._status;
   }
 
+  /** 返回创建本控制器时使用的只读关卡配置。 */
+  public get levelConfig(): PuzzleLevelConfig {
+    return this._levelConfig;
+  }
+
   /** 启动关卡并派发初始状态；重复启动不会重置正在运行的棋盘。 */
   public start(): void {
     if (this._status !== PuzzleGameStatus.Idle) {

@@ -6,6 +6,11 @@ import { UIManager } from "../core/ui/UIManager";
 import { Logger } from "../core/utils/Logger";
 import { PuzzleLevelNumbers } from "../game/config/PuzzleLevelConfig";
 import { GameEvent, GameStartRequest } from "../game/GameEvent";
+import {
+    PuzzleSceneName,
+    PuzzleUIConfig,
+    PuzzleUIName,
+} from "../game/PuzzleGameKey";
 import { PuzzleLevelSession } from "../game/progress/PuzzleLevelSession";
 import { PuzzleProgressManager } from "../game/progress/PuzzleProgressManager";
 import {
@@ -23,7 +28,7 @@ const { ccclass, property } = _decorator;
 @ccclass("LobbyScene")
 export class LobbyScene extends SceneBase {
     /** 当前场景名。 */
-    protected _sceneName = "Lobby";
+    protected _sceneName = PuzzleSceneName.Lobby;
 
     /** 当前场景的 UI 根节点，必须在 Lobby.scene 中显式绑定。 */
     @property(Node)
@@ -60,8 +65,8 @@ export class LobbyScene extends SceneBase {
         this._gameEntryRequestId += 1;
         PuzzleLevelSession.cancelPendingSelection();
         this._sceneTransitioning = false;
-        UIManager.close("UIHomePanel", true);
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.Home, true);
+        UIManager.close(PuzzleUIName.LoadError, true);
         super.onExit();
     }
 
@@ -88,7 +93,10 @@ export class LobbyScene extends SceneBase {
     /** 打开首页面板；失败时展示可重新发起同一请求的恢复弹窗。 */
     private async openHomePanel(params: UIHomePanelOpenParams): Promise<void> {
         const requestId = ++this._homePanelRequestId;
-        const result = await UIManager.open<UIHomePanel>("UIHomePanel", params);
+        const result = await UIManager.open<UIHomePanel>(
+            PuzzleUIName.Home,
+            params,
+        );
         if (!this.node.isValid || requestId !== this._homePanelRequestId) {
             return;
         }
@@ -127,7 +135,9 @@ export class LobbyScene extends SceneBase {
         const requestId = ++this._gameEntryRequestId;
         this._sceneTransitioning = true;
         this.closeLoadErrorPanel();
-        UIManager.get<UIHomePanel>("UIHomePanel")?.setStartInteractable(false);
+        UIManager.get<UIHomePanel>(
+            PuzzleUIName.Home,
+        )?.setStartInteractable(false);
 
         try {
             const levelConfig = await PuzzleLevelSession.selectLevel(request.level);
@@ -146,7 +156,9 @@ export class LobbyScene extends SceneBase {
                 return;
             }
             this._sceneTransitioning = false;
-            UIManager.get<UIHomePanel>("UIHomePanel")?.setStartInteractable(true);
+            UIManager.get<UIHomePanel>(
+                PuzzleUIName.Home,
+            )?.setStartInteractable(true);
             Logger.error(`无法选择第 ${request.level} 关。`, error);
             await this.openLoadErrorPanel({
                 title: "关卡准备失败",
@@ -157,7 +169,7 @@ export class LobbyScene extends SceneBase {
             return;
         }
 
-        const result = await SceneManager.load("Game");
+        const result = await SceneManager.load(PuzzleSceneName.Game);
         if (result.status === "loaded") {
             return;
         }
@@ -169,7 +181,9 @@ export class LobbyScene extends SceneBase {
         }
 
         this._sceneTransitioning = false;
-        UIManager.get<UIHomePanel>("UIHomePanel")?.setStartInteractable(true);
+        UIManager.get<UIHomePanel>(
+            PuzzleUIName.Home,
+        )?.setStartInteractable(true);
         Logger.error(
             `游戏场景加载未完成，状态：${result.status}，原因：${result.reason ?? "unknown"}`,
             result.error,
@@ -199,9 +213,9 @@ export class LobbyScene extends SceneBase {
         params: UILoadErrorPanelOpenParams,
     ): Promise<void> {
         const requestId = ++this._errorPanelRequestId;
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.LoadError, true);
         const result = await UIManager.open<UILoadErrorPanel>(
-            "UILoadErrorPanel",
+            PuzzleUIName.LoadError,
             params,
         );
         if (!this.node.isValid || requestId !== this._errorPanelRequestId) {
@@ -218,23 +232,15 @@ export class LobbyScene extends SceneBase {
     /** 关闭加载失败弹窗并使仍在加载的旧弹窗请求失效。 */
     private closeLoadErrorPanel = (): void => {
         this._errorPanelRequestId += 1;
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.LoadError, true);
     };
 
     /** 注册首页和通用加载失败弹窗，由 UIManager 统一加载和管理。 */
     private prepareHomePanels(): void {
         UIManager.setRoot(this.uiRoot!);
         UIManager.registerMany([
-            {
-                name: "UIHomePanel",
-                path: "prefabs/home/UIHomePanel",
-                cache: true,
-            },
-            {
-                name: "UILoadErrorPanel",
-                path: "prefabs/common/UILoadErrorPanel",
-                cache: false,
-            },
+            PuzzleUIConfig.Home,
+            PuzzleUIConfig.LoadError,
         ]);
     }
 }

@@ -22,12 +22,195 @@ const sceneConfigs = [
   },
 ];
 
+/** 全部正式场景；用于执行不依赖业务入口结构的公共清理。 */
+const allSceneConfigs = [
+  {
+    name: "Boot",
+    path: "assets/scene/Boot.scene",
+  },
+  ...sceneConfigs,
+];
+
 /** 配置全部场景并在写入前后校验引用结构。 */
 function main() {
+  for (const config of allSceneConfigs) {
+    removeLegacyDirectionalLight(config);
+    removeLegacyMainCamera(config);
+  }
   for (const config of sceneConfigs) {
     configureScene(config);
   }
-  console.log("Lobby.scene 与 Game.scene 的 UIRoot 显式绑定已配置完成。");
+  console.log(
+    "三个正式场景的废弃 3D 主光源和主相机已清理，Lobby.scene 与 Game.scene 的 UIRoot 显式绑定已配置完成。",
+  );
+}
+
+/**
+ * 删除 2D 场景模板遗留的主光源。
+ *
+ * 这三个场景只渲染 2D UI，保留 DirectionalLight 只会增加无效的反序列化和光照状态；
+ * 使用可重复执行的迁移工具统一删除，避免人工修改序列化 JSON 或破坏内部引用。
+ */
+function removeLegacyDirectionalLight(config) {
+  const scenePath = path.join(projectRoot, config.path);
+  const objects = JSON.parse(fs.readFileSync(scenePath, "utf8"));
+  validateReferenceRange(objects, config.name);
+
+  const mainLightIds = objects
+    .map((object, index) => ({ object, index }))
+    .filter(
+      ({ object }) =>
+        object.__type__ === "cc.Node" && object._name === "Main Light",
+    )
+    .map(({ index }) => index);
+  if (mainLightIds.length === 0) {
+    const legacyType = objects.find(
+      (object) =>
+        object.__type__ === "cc.DirectionalLight" ||
+        object.__type__ === "cc.StaticLightSettings",
+    )?.__type__;
+    if (legacyType) {
+      throw new Error(
+        `${config.name}.scene 存在未挂在 Main Light 下的废弃组件：${legacyType}`,
+      );
+    }
+    return;
+  }
+  if (mainLightIds.length !== 1) {
+    throw new Error(`${config.name}.scene 必须至多有一个 Main Light 节点。`);
+  }
+
+  const mainLightId = mainLightIds[0];
+  const mainLight = objects[mainLightId];
+  const componentIds = (mainLight._components ?? []).map(
+    (component) => component.__id__,
+  );
+  if (
+    componentIds.length !== 1 ||
+    objects[componentIds[0]]?.__type__ !== "cc.DirectionalLight"
+  ) {
+    throw new Error(
+      `${config.name}.Main Light 必须只包含一个 DirectionalLight。`,
+    );
+  }
+
+  const directionalLightId = componentIds[0];
+  const staticSettingsId = objects[directionalLightId]._staticSettings?.__id__;
+  if (
+    staticSettingsId === undefined ||
+    objects[staticSettingsId]?.__type__ !== "cc.StaticLightSettings"
+  ) {
+    throw new Error(
+      `${config.name}.DirectionalLight 缺少 StaticLightSettings。`,
+    );
+  }
+
+  const sceneId = objects[0]?.scene?.__id__;
+  const scene = objects[sceneId];
+  if (scene?.__type__ !== "cc.Scene") {
+    throw new Error(`${config.name}.scene 缺少有效的 cc.Scene 根对象。`);
+  }
+  scene._children = (scene._children ?? []).filter(
+    (child) => child.__id__ !== mainLightId,
+  );
+
+  const compactedObjects = removeSerializedObjects(
+    objects,
+    new Set([mainLightId, directionalLightId, staticSettingsId]),
+    config.name,
+  );
+  validateReferenceRange(compactedObjects, config.name);
+  fs.writeFileSync(
+    scenePath,
+    `${JSON.stringify(compactedObjects, null, 2)}\n`,
+    "utf8",
+  );
+}
+
+/**
+ * 删除 3D 模板遗留的 Main Camera。
+ *
+ * Canvas 已显式持有自己的正交 UI 相机；根节点下额外的透视相机会激活无用的 3D
+ * 渲染路径，并且对当前纯 UI 场景没有任何画面贡献。
+ */
+function removeLegacyMainCamera(config) {
+  const scenePath = path.join(projectRoot, config.path);
+  const objects = JSON.parse(fs.readFileSync(scenePath, "utf8"));
+  validateReferenceRange(objects, config.name);
+
+  const mainCameraIds = objects
+    .map((object, index) => ({ object, index }))
+    .filter(
+      ({ object }) =>
+        object.__type__ === "cc.Node" && object._name === "Main Camera",
+    )
+    .map(({ index }) => index);
+  if (mainCameraIds.length === 0) {
+    return;
+  }
+  if (mainCameraIds.length !== 1) {
+    throw new Error(`${config.name}.scene 必须至多有一个 Main Camera 节点。`);
+  }
+
+  const mainCameraId = mainCameraIds[0];
+  const mainCamera = objects[mainCameraId];
+  const componentIds = (mainCamera._components ?? []).map(
+    (component) => component.__id__,
+  );
+  if (
+    componentIds.length !== 1 ||
+    objects[componentIds[0]]?.__type__ !== "cc.Camera"
+  ) {
+    throw new Error(`${config.name}.Main Camera 必须只包含一个 cc.Camera。`);
+  }
+
+  const sceneId = objects[0]?.scene?.__id__;
+  const scene = objects[sceneId];
+  if (scene?.__type__ !== "cc.Scene") {
+    throw new Error(`${config.name}.scene 缺少有效的 cc.Scene 根对象。`);
+  }
+  scene._children = (scene._children ?? []).filter(
+    (child) => child.__id__ !== mainCameraId,
+  );
+
+  const compactedObjects = removeSerializedObjects(
+    objects,
+    new Set([mainCameraId, componentIds[0]]),
+    config.name,
+  );
+  validateReferenceRange(compactedObjects, config.name);
+  fs.writeFileSync(
+    scenePath,
+    `${JSON.stringify(compactedObjects, null, 2)}\n`,
+    "utf8",
+  );
+}
+
+/** 删除一组序列化对象，并一次性重排保留对象中的全部内部引用。 */
+function removeSerializedObjects(objects, removedIds, sceneName) {
+  const idMap = new Map();
+  const retainedObjects = [];
+  for (let oldId = 0; oldId < objects.length; oldId += 1) {
+    if (removedIds.has(oldId)) {
+      continue;
+    }
+    idMap.set(oldId, retainedObjects.length);
+    retainedObjects.push(objects[oldId]);
+  }
+
+  visitValue(retainedObjects, (oldId, referenceValue) => {
+    if (removedIds.has(oldId)) {
+      throw new Error(
+        `${sceneName}.scene 删除对象后仍存在引用：__id__=${oldId}`,
+      );
+    }
+    const newId = idMap.get(oldId);
+    if (newId === undefined) {
+      throw new Error(`${sceneName}.scene 存在无法重排的引用：__id__=${oldId}`);
+    }
+    referenceValue.__id__ = newId;
+  });
+  return retainedObjects;
 }
 
 /** 为单个场景创建或复用 UIRoot，并清理旧版场景音频绑定。 */
@@ -264,7 +447,7 @@ function visitValue(value, onReference) {
     return;
   }
   if (Object.keys(value).length === 1 && Object.hasOwn(value, "__id__")) {
-    onReference(value.__id__);
+    onReference(value.__id__, value);
     return;
   }
   Object.values(value).forEach((item) => visitValue(item, onReference));

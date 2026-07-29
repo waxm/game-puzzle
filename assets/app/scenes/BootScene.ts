@@ -1,4 +1,4 @@
-import { _decorator } from "cc";
+import { _decorator, ResolutionPolicy, view } from "cc";
 import { App } from "../core/app/App";
 import { PUZZLE_APP_INIT_OPTIONS } from "../game/config/PuzzleProjectConfig";
 import { SceneBase } from "../core/scene/SceneBase";
@@ -9,6 +9,12 @@ import {
     UILoadErrorPanel,
     UILoadErrorPanelOpenParams,
 } from "../ui/common/UILoadErrorPanel";
+import {
+    PuzzleDisplayConfig,
+    PuzzleSceneName,
+    PuzzleUIConfig,
+    PuzzleUIName,
+} from "../game/PuzzleGameKey";
 
 const { ccclass } = _decorator;
 
@@ -16,10 +22,10 @@ const { ccclass } = _decorator;
 @ccclass("BootScene")
 export class BootScene extends SceneBase {
     /** 当前场景名。 */
-    protected _sceneName = "Boot";
+    protected _sceneName = PuzzleSceneName.Boot;
 
     /** 启动完成后进入的场景名。 */
-    private readonly _nextSceneName = "Lobby";
+    private readonly _nextSceneName = PuzzleSceneName.Lobby;
 
     /** 是否正在加载大厅，防止失败弹窗连续提交重试。 */
     private _sceneLoading = false;
@@ -29,6 +35,13 @@ export class BootScene extends SceneBase {
 
     /** 初始化框架、注册启动恢复界面并进入大厅。 */
     protected onEnter(): void {
+        // Creator 3.8.4 的 Web 构建器会把初始策略写回 FIXED_WIDTH；
+        // Boot 必须在任何业务 UI 打开前恢复 SHOW_ALL，确保宽屏 iframe 不裁切上下内容。
+        view.setDesignResolutionSize(
+            PuzzleDisplayConfig.Width,
+            PuzzleDisplayConfig.Height,
+            ResolutionPolicy.SHOW_ALL,
+        );
         super.onEnter();
         App.init(PUZZLE_APP_INIT_OPTIONS);
         Logger.info("进入启动场景。");
@@ -40,7 +53,7 @@ export class BootScene extends SceneBase {
     protected onExit(): void {
         this._errorPanelRequestId += 1;
         this._sceneLoading = false;
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.LoadError, true);
         super.onExit();
     }
 
@@ -83,9 +96,9 @@ export class BootScene extends SceneBase {
         params: UILoadErrorPanelOpenParams,
     ): Promise<void> {
         const requestId = ++this._errorPanelRequestId;
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.LoadError, true);
         const result = await UIManager.open<UILoadErrorPanel>(
-            "UILoadErrorPanel",
+            PuzzleUIName.LoadError,
             params,
         );
         if (!this.node.isValid || requestId !== this._errorPanelRequestId) {
@@ -102,16 +115,12 @@ export class BootScene extends SceneBase {
     /** 关闭加载失败弹窗并取消尚未结束的旧打开请求。 */
     private closeLoadErrorPanel(): void {
         this._errorPanelRequestId += 1;
-        UIManager.close("UILoadErrorPanel", true);
+        UIManager.close(PuzzleUIName.LoadError, true);
     }
 
     /** 让 Boot 的 Canvas 承载通用加载失败弹窗。 */
     private prepareLoadErrorPanel(): void {
         UIManager.setRoot(this.node);
-        UIManager.register({
-            name: "UILoadErrorPanel",
-            path: "prefabs/common/UILoadErrorPanel",
-            cache: false,
-        });
+        UIManager.register(PuzzleUIConfig.LoadError);
     }
 }

@@ -86,7 +86,11 @@ export class UIHomePanel extends UIBase {
         }
 
         this._eventsBound = true;
-        this.startButton?.node.on(Button.EventType.CLICK, this.onClickStart, this);
+        this.startButton!.node.on(
+            Button.EventType.CLICK,
+            this.onClickStart,
+            this,
+        );
     }
 
     /** 注销首页按钮事件。 */
@@ -96,23 +100,46 @@ export class UIHomePanel extends UIBase {
         }
 
         this._eventsBound = false;
-        this.startButton?.node.off(Button.EventType.CLICK, this.onClickStart, this);
+        this.startButton!.node.off(
+            Button.EventType.CLICK,
+            this.onClickStart,
+            this,
+        );
     }
 
     /** 校验大厅传入的进度摘要，避免首页展示错误存档状态。 */
     private readOpenParams(params: unknown): UIHomePanelOpenParams {
-        if (!params || typeof params !== "object" || !("targetLevel" in params)) {
+        if (
+            !params ||
+            typeof params !== "object" ||
+            !("targetLevel" in params) ||
+            !("completedCount" in params) ||
+            !("totalCount" in params)
+        ) {
             throw new Error("打开 UIHomePanel 时必须传入关卡进度参数。");
         }
-        const homeParams = params as UIHomePanelOpenParams;
+        const targetLevel = params.targetLevel;
+        const completedCount = params.completedCount;
+        const totalCount = params.totalCount;
         if (
-            !Number.isInteger(homeParams.targetLevel) ||
-            !Number.isInteger(homeParams.completedCount) ||
-            !Number.isInteger(homeParams.totalCount)
+            typeof targetLevel !== "number" ||
+            !Number.isInteger(targetLevel) ||
+            typeof completedCount !== "number" ||
+            !Number.isInteger(completedCount) ||
+            typeof totalCount !== "number" ||
+            !Number.isInteger(totalCount) ||
+            targetLevel <= 0 ||
+            completedCount < 0 ||
+            totalCount <= 0 ||
+            completedCount > totalCount
         ) {
             throw new Error("UIHomePanel 收到的关卡进度参数无效。");
         }
-        return homeParams;
+        return {
+            targetLevel,
+            completedCount,
+            totalCount,
+        };
     }
 
     /** 点击开始按钮后进入当前最高已解锁关卡。 */
