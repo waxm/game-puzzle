@@ -156,17 +156,28 @@ export class UISettingsPanel extends UIBase {
       640,
       1136,
       0,
-      new Color(14, 18, 26, 215),
+      new Color(73, 52, 38, 188),
     );
-    this.drawRoundedRect(
-      this.panelGraphics!,
-      -270,
-      -455,
-      540,
-      910,
-      26,
-      new Color(245, 248, 252, 255),
-    );
+    const panel = this.panelGraphics!;
+    panel.clear();
+    panel.fillColor = new Color(78, 54, 35, 34);
+    panel.roundRect(-266, -463, 532, 906, 38);
+    panel.fill();
+    panel.fillColor = new Color(255, 251, 241, 255);
+    panel.roundRect(-270, -455, 540, 910, 38);
+    panel.fill();
+    panel.lineWidth = 3;
+    panel.strokeColor = new Color(226, 191, 141, 210);
+    panel.roundRect(-270, -455, 540, 910, 38);
+    panel.stroke();
+
+    // 声音和震动使用完整卡片承载，保证点击区域与视觉范围一致。
+    panel.fillColor = new Color(255, 241, 219, 255);
+    panel.roundRect(-230, 205, 460, 82, 24);
+    panel.fill();
+    panel.roundRect(-230, 110, 460, 82, 24);
+    panel.fill();
+
     this.drawRoundedRect(
       this.closeButtonGraphics!,
       -28,
@@ -174,7 +185,7 @@ export class UISettingsPanel extends UIBase {
       56,
       56,
       28,
-      new Color(224, 230, 238, 255),
+      new Color(247, 224, 187, 255),
     );
     for (const graphics of [
       this.helpGraphics!,
@@ -188,9 +199,13 @@ export class UISettingsPanel extends UIBase {
         -34,
         440,
         68,
-        14,
-        new Color(232, 238, 247, 255),
+        20,
+        new Color(250, 237, 217, 255),
       );
+      graphics.lineWidth = 2;
+      graphics.strokeColor = new Color(226, 196, 151, 155);
+      graphics.roundRect(-220, -34, 440, 68, 20);
+      graphics.stroke();
     }
   }
 
@@ -223,12 +238,15 @@ export class UISettingsPanel extends UIBase {
       52,
       26,
       enabled
-        ? new Color(56, 172, 112, 255)
-        : new Color(151, 160, 174, 255),
+        ? new Color(218, 169, 82, 255)
+        : new Color(202, 188, 166, 255),
     );
     graphics.fillColor = new Color(255, 255, 255, 255);
     graphics.circle(enabled ? 26 : -26, 0, 20);
     graphics.fill();
+    label.color = enabled
+      ? new Color(104, 72, 40, 255)
+      : new Color(126, 111, 91, 255);
     label.string = enabled ? "开" : "关";
   }
 

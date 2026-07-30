@@ -1,0 +1,518 @@
+{
+  "schemaVersion": 1,
+  "module": {
+    "id": "time-album-lobby",
+    "title": "千年拾光画册大厅",
+    "kind": "activity",
+    "phase": "test-ready"
+  },
+  "capabilities": {
+    "ui": true,
+    "api": false,
+    "list": false,
+    "persistence": false,
+    "analytics": false,
+    "time": false
+  },
+  "sources": [
+    {
+      "id": "user-album-requirement",
+      "kind": "requirement",
+      "status": "read",
+      "location": "用户 2026-07-30 确认以年代画册包装大厅，并确定第一卷为宋韵人间·汴京一日"
+    },
+    {
+      "id": "project-rules",
+      "kind": "project",
+      "status": "read",
+      "location": "AGENTS.md"
+    },
+    {
+      "id": "existing-warm-lobby",
+      "kind": "project",
+      "status": "read",
+      "location": "UIHomePanel、LobbyScene、PuzzleProgressManager、create-system-prefabs.mjs"
+    },
+    {
+      "id": "original-scroll-art-direction",
+      "kind": "design",
+      "status": "read",
+      "location": "原创宋韵工笔淡彩五场景生成规范"
+    }
+  ],
+  "project": {
+    "creatorVersion": "3.8.4",
+    "designResolution": {
+      "width": 640,
+      "height": 1136
+    },
+    "orientation": "portrait"
+  },
+  "scope": {
+    "included": [
+      "大厅首页升级为千年拾光画册入口",
+      "第一卷宋韵人间·汴京一日展示五个关卡画格",
+      "根据现有 completedLevels 点亮已完成画格并提示下一张",
+      "保留继续最高已解锁关卡、玩家资料和设置入口",
+      "为第 1 至 5 关制作统一画风的原创宋韵场景并保持原资源 UUID",
+      "增加纯 TypeScript 画册配置与进度快照测试"
+    ],
+    "excluded": [
+      "第二卷及后续年代画册内容",
+      "独立选关页和完整画册翻阅页",
+      "通关后碎片飞入画册的跨场景动画",
+      "金币、体力、商店、任务和装修系统",
+      "设置弹窗和游戏 HUD 改版",
+      "平台构建与发布"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "five-level-scroll",
+      "confidence": "confirmed",
+      "impact": "behavior",
+      "statement": "第一卷由五个连续关卡画格组成，依次为城门晨曦、街巷早市、茶坊雅集、河畔舟行和上元灯夜。",
+      "sources": [
+        "user-album-requirement"
+      ]
+    },
+    {
+      "id": "reuse-progress-save",
+      "confidence": "inferred",
+      "impact": "structure",
+      "statement": "画册点亮状态由 PuzzleProgressManager 的 completedLevels 只读派生，不新增画册存档。",
+      "reason": "同一事实只保留一个数据来源，避免通关进度与画册进度不一致。",
+      "sources": [
+        "project-rules",
+        "existing-warm-lobby"
+      ]
+    },
+    {
+      "id": "original-cohesive-art",
+      "confidence": "confirmed",
+      "impact": "polish",
+      "statement": "前五关使用统一宋韵工笔淡彩原创插画，不混用授权不明的网络图片。",
+      "sources": [
+        "user-album-requirement",
+        "original-scroll-art-direction"
+      ]
+    },
+    {
+      "id": "repeatable-prefab-generation",
+      "confidence": "explicit",
+      "impact": "structure",
+      "statement": "继续由 create-system-prefabs.mjs 生成首页 Prefab，并保持 UIHomePanel.prefab 与关卡纹理现有 UUID。",
+      "sources": [
+        "project-rules",
+        "existing-warm-lobby"
+      ]
+    }
+  ],
+  "openQuestions": [],
+  "states": [
+    "album-empty",
+    "album-in-progress",
+    "album-completed",
+    "scene-transitioning"
+  ],
+  "transitions": [
+    {
+      "event": "return-to-lobby-with-no-completion",
+      "from": "album-empty",
+      "to": "album-empty",
+      "authority": "PuzzleProgressManager"
+    },
+    {
+      "event": "complete-level-1-to-4",
+      "from": "album-empty",
+      "to": "album-in-progress",
+      "authority": "PuzzleProgressManager"
+    },
+    {
+      "event": "complete-another-level-1-to-4",
+      "from": "album-in-progress",
+      "to": "album-in-progress",
+      "authority": "PuzzleProgressManager"
+    },
+    {
+      "event": "complete-level-5",
+      "from": "album-in-progress",
+      "to": "album-completed",
+      "authority": "PuzzleProgressManager"
+    },
+    {
+      "event": "start-current-level",
+      "from": "album-empty",
+      "to": "scene-transitioning",
+      "authority": "LobbyScene"
+    },
+    {
+      "event": "continue-current-level",
+      "from": "album-in-progress",
+      "to": "scene-transitioning",
+      "authority": "LobbyScene"
+    },
+    {
+      "event": "continue-after-album",
+      "from": "album-completed",
+      "to": "scene-transitioning",
+      "authority": "LobbyScene"
+    }
+  ],
+  "architecture": {
+    "artifacts": [
+      {
+        "id": "album-catalog",
+        "role": "config",
+        "responsibility": "集中定义第一卷标题、画格名称、关卡编号和资源路径，并生成只读进度快照。"
+      },
+      {
+        "id": "home-view",
+        "role": "view",
+        "responsibility": "渲染画册封面、五个关卡画格和进度文案，并转发现有三个大厅操作。"
+      },
+      {
+        "id": "lobby-scene-composition",
+        "role": "controller",
+        "responsibility": "从现有进度管理器读取快照并作为首页打开参数传入。"
+      },
+      {
+        "id": "system-prefab-builder",
+        "role": "config",
+        "responsibility": "可重复生成首页节点、纹理引用和全部 Inspector 显式绑定。"
+      }
+    ]
+  },
+  "interfaces": [
+    {
+      "id": "remote-api",
+      "operation": "not-needed",
+      "required": false,
+      "implementation": "not-needed",
+      "sources": [
+        "user-album-requirement"
+      ]
+    }
+  ],
+  "ui": {
+    "screens": [
+      {
+        "id": "album-home-screen",
+        "kind": "full-screen",
+        "prefab": "UIHomePanel"
+      }
+    ],
+    "lists": [],
+    "bindings": [
+      {
+        "name": "albumPanelSprites",
+        "component": "cc.Sprite × 5",
+        "owner": "album-home-screen",
+        "classification": "dynamic",
+        "source": "第一卷五个关卡原图",
+        "required": true,
+        "reason": "大厅必须真实展示当前卷的五个连续画格。"
+      },
+      {
+        "name": "albumProgressGraphics",
+        "component": "cc.Graphics",
+        "owner": "album-home-screen",
+        "classification": "dynamic",
+        "source": "PuzzleAlbumProgressSnapshot",
+        "required": true,
+        "reason": "用遮罩、边框和进度标记区分已点亮、当前和未解锁画格。"
+      },
+      {
+        "name": "startButton",
+        "component": "cc.Button",
+        "owner": "album-home-screen",
+        "classification": "interactive",
+        "source": "targetLevel",
+        "required": true,
+        "reason": "继续进入最高已解锁关卡。"
+      },
+      {
+        "name": "profileButton",
+        "component": "cc.Button",
+        "owner": "album-home-screen",
+        "classification": "interactive",
+        "source": "puzzle.profile",
+        "required": true,
+        "reason": "保留玩家资料入口。"
+      },
+      {
+        "name": "settingsButton",
+        "component": "cc.Button",
+        "owner": "album-home-screen",
+        "classification": "interactive",
+        "source": "PuzzleSystemEvent.SettingsOpenRequested",
+        "required": true,
+        "reason": "保留设置入口。"
+      }
+    ],
+    "actions": [
+      {
+        "id": "start-game",
+        "owner": "album-home-screen",
+        "trigger": "startButton click",
+        "handler": "UIHomePanel.onClickStart"
+      },
+      {
+        "id": "open-profile",
+        "owner": "album-home-screen",
+        "trigger": "profileButton click",
+        "handler": "PuzzleSystemEvent.ProfileOpenRequested"
+      },
+      {
+        "id": "open-settings",
+        "owner": "album-home-screen",
+        "trigger": "settingsButton click",
+        "handler": "PuzzleSystemEvent.SettingsOpenRequested"
+      }
+    ],
+    "visualStates": [
+      {
+        "id": "album-empty",
+        "owner": "album-home-screen",
+        "description": "五个画格均使用宣纸色遮罩，第一格以金色边框提示当前修复目标。"
+      },
+      {
+        "id": "album-in-progress",
+        "owner": "album-home-screen",
+        "description": "已完成画格显示完整彩色插画，下一格以金色边框提示，其余画格保持低饱和遮罩。"
+      },
+      {
+        "id": "album-completed",
+        "owner": "album-home-screen",
+        "description": "五个画格全部点亮，进度文案提示第一卷完整修复。"
+      }
+    ]
+  },
+  "acceptance": {
+    "cases": [
+      {
+        "id": "empty-album",
+        "title": "新存档打开大厅时第一卷为 0/5，第一格被标记为当前目标，继续按钮进入第 1 关",
+        "status": "passed",
+        "sources": [
+          "user-album-requirement"
+        ]
+      },
+      {
+        "id": "partial-album",
+        "title": "完成前四关后大厅显示 4/5，前四格点亮且第五格为当前目标",
+        "status": "passed",
+        "sources": [
+          "user-album-requirement"
+        ]
+      },
+      {
+        "id": "completed-album",
+        "title": "完成前五关后大厅显示第一卷已完整修复，五格全部点亮",
+        "status": "passed",
+        "sources": [
+          "user-album-requirement"
+        ]
+      },
+      {
+        "id": "lobby-behavior-regression",
+        "title": "开始、资料、设置、连续点击锁定和返回大厅行为保持不变",
+        "status": "passed",
+        "sources": [
+          "existing-warm-lobby"
+        ]
+      },
+      {
+        "id": "visual-safe-area",
+        "title": "640×1136、短屏和长屏下画册、按钮、头像与设置入口完整可见且无遮挡",
+        "status": "passed",
+        "sources": [
+          "project-rules"
+        ]
+      }
+    ],
+    "gates": [
+      {
+        "id": "contract",
+        "status": "passed"
+      },
+      {
+        "id": "static",
+        "status": "passed"
+      },
+      {
+        "id": "creator-import",
+        "status": "passed"
+      },
+      {
+        "id": "visual",
+        "status": "passed"
+      },
+      {
+        "id": "functional-smoke",
+        "status": "passed"
+      },
+      {
+        "id": "functional",
+        "status": "passed"
+      },
+      {
+        "id": "api",
+        "status": "passed"
+      },
+      {
+        "id": "lifecycle",
+        "status": "passed"
+      },
+      {
+        "id": "regression",
+        "status": "passed"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "gate": "contract",
+      "type": "command",
+      "result": "用户确认范围、现有进度来源、首页边界和五场景视觉规范已归一化，无阻塞问题。",
+      "reference": "module-contract.json"
+    },
+    {
+      "gate": "api",
+      "type": "manual",
+      "result": "画册大厅完全使用本地配置和现有存档，不需要远程接口。",
+      "reference": "用户 2026-07-30 需求"
+    },
+    {
+      "gate": "static",
+      "type": "command",
+      "result": "类型检查、画册进度测试、关卡资源校验和 Cocos 资源绑定校验全部通过。",
+      "reference": "npm run verify:module -- time-album-lobby"
+    },
+    {
+      "gate": "creator-import",
+      "type": "manual",
+      "result": "Cocos Creator 3.8.4 已导入 PuzzleAlbumCatalog、首页 Prefab 和前五关纹理；编辑器日志增量无错误。",
+      "reference": "Cocos Creator 3.8.4 项目窗口与编辑器日志增量"
+    },
+    {
+      "gate": "visual",
+      "type": "manual",
+      "result": "画册大厅在 640×1136、375×667 和 430×932 三种视口下完整显示，文字、画格、主按钮和安全区入口均无遮挡。",
+      "reference": "Creator 浏览器预览"
+    },
+    {
+      "gate": "functional-smoke",
+      "type": "manual",
+      "result": "预览完成大厅进入第 1 关、结算返回大厅、打开设置和打开玩家资料；浏览器控制台无 warning/error。",
+      "reference": "Creator 浏览器预览"
+    },
+    {
+      "gate": "functional",
+      "type": "command",
+      "result": "0/5、4/5、5/5 和异常完成记录四类画册快照用例全部通过。",
+      "reference": "npm run verify:puzzle-album"
+    },
+    {
+      "gate": "lifecycle",
+      "type": "manual",
+      "result": "Game 返回 Lobby 后首页重新打开，主流程无重复面板、遗留弹窗或控制台错误。",
+      "reference": "Boot -> Lobby -> Game -> Lobby 预览"
+    },
+    {
+      "gate": "regression",
+      "type": "command",
+      "result": "快速变更验证与完整项目验证均通过。",
+      "reference": "npm run verify:changed；npm run verify"
+    }
+  ],
+  "deliverables": [
+    {
+      "kind": "source",
+      "path": "assets/app/game/config/PuzzleAlbumCatalog.ts",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "source",
+      "path": "assets/app/ui/home/UIHomePanel.ts",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "source",
+      "path": "assets/app/scenes/LobbyScene.ts",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "prefab",
+      "path": "assets/resources/prefabs/home/UIHomePanel.prefab",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "asset",
+      "path": "assets/resources/textures/game/levels/level_001/level_001_source.png",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "asset",
+      "path": "assets/resources/textures/game/levels/level_002/level_002_source.png",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "asset",
+      "path": "assets/resources/textures/game/levels/level_003/level_003_source.png",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "asset",
+      "path": "assets/resources/textures/game/levels/level_004/level_004_source.png",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "asset",
+      "path": "assets/resources/textures/game/levels/level_005/level_005_source.png",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "tool",
+      "path": "tools/create-system-prefabs.mjs",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "test",
+      "path": "tools/verify-puzzle-album.mjs",
+      "requiredFor": [
+        "test"
+      ]
+    }
+  ]
+}

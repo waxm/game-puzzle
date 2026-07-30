@@ -5,6 +5,7 @@ import { SceneBase } from "../core/scene/SceneBase";
 import { SceneManager } from "../core/scene/SceneManager";
 import { UIManager } from "../core/ui/UIManager";
 import { Logger } from "../core/utils/Logger";
+import { createPuzzleAlbumProgress } from "../game/config/PuzzleAlbumCatalog";
 import { PuzzleLevelNumbers } from "../game/config/PuzzleLevelConfig";
 import { GameEvent, GameStartRequest } from "../game/GameEvent";
 import {
@@ -135,6 +136,9 @@ export class LobbyScene extends SceneBase {
             targetLevel: PuzzleProgressManager.getHighestUnlockedLevel(),
             completedCount: progress.completedLevels.length,
             totalCount: PuzzleLevelNumbers.length,
+            albumProgress: createPuzzleAlbumProgress(
+                progress.completedLevels,
+            ),
             profile: PuzzleProfileManager.getProfile(),
         };
     }

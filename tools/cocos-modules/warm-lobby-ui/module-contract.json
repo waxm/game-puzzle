@@ -1,0 +1,434 @@
+{
+  "schemaVersion": 1,
+  "module": {
+    "id": "warm-lobby-ui",
+    "title": "大厅与设置暖色治愈换肤",
+    "kind": "activity",
+    "phase": "runnable"
+  },
+  "capabilities": {
+    "ui": true,
+    "api": false,
+    "list": false,
+    "persistence": false,
+    "analytics": false,
+    "time": false
+  },
+  "sources": [
+    {
+      "id": "user-style-requirement",
+      "kind": "requirement",
+      "status": "read",
+      "location": "用户 2026-07-30 指定大厅和设置界面采用治愈、暖色系"
+    },
+    {
+      "id": "project-rules",
+      "kind": "project",
+      "status": "read",
+      "location": "AGENTS.md"
+    },
+    {
+      "id": "kenney-ui-pack",
+      "kind": "design",
+      "status": "read",
+      "location": "https://kenney.nl/assets/ui-pack"
+    },
+    {
+      "id": "existing-lobby-settings",
+      "kind": "project",
+      "status": "read",
+      "location": "UIHomePanel、UISettingsPanel 和 create-system-prefabs.mjs"
+    }
+  ],
+  "project": {
+    "creatorVersion": "3.8.4",
+    "designResolution": {
+      "width": 640,
+      "height": 1136
+    },
+    "orientation": "portrait"
+  },
+  "scope": {
+    "included": [
+      "大厅全屏背景、中央内容卡片、开始按钮和顶部入口换肤",
+      "设置弹窗底板、设置卡片、开关和动作行换肤",
+      "下载并导入 CC0 暖黄色按钮与图标",
+      "保留现有功能、存档、事件和 Inspector 绑定"
+    ],
+    "excluded": [
+      "头像弹窗换肤",
+      "游戏场景 HUD 换肤",
+      "帮助、评分、隐私和服务条款真实内容",
+      "Web 或其他平台构建"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "warm-healing-palette",
+      "confidence": "confirmed",
+      "impact": "polish",
+      "statement": "大厅和设置统一使用奶油白、杏黄、暖棕与鼠尾草绿，减少高饱和冷色。",
+      "sources": [
+        "user-style-requirement"
+      ]
+    },
+    {
+      "id": "repeatable-prefab-generation",
+      "confidence": "explicit",
+      "impact": "structure",
+      "statement": "继续由 create-system-prefabs.mjs 生成并校验 Prefab，保留现有 Prefab UUID，不直接手改序列化 JSON。",
+      "sources": [
+        "project-rules",
+        "existing-lobby-settings"
+      ]
+    },
+    {
+      "id": "kenney-primary-assets",
+      "confidence": "inferred",
+      "impact": "polish",
+      "statement": "使用 Kenney UI Pack 的暖黄色按钮与播放图标作为主操作视觉，其余面板使用项目内 Graphics 统一暖色，以避免多套素材风格冲突。",
+      "reason": "Kenney 资源许可清晰且已稳定下载；单独使用高饱和整套控件会偏离用户指定的柔和治愈风格。",
+      "sources": [
+        "kenney-ui-pack",
+        "user-style-requirement"
+      ]
+    }
+  ],
+  "openQuestions": [],
+  "states": [
+    "lobby-ready",
+    "settings-open",
+    "settings-closed"
+  ],
+  "transitions": [
+    {
+      "event": "open-settings",
+      "from": "lobby-ready",
+      "to": "settings-open",
+      "authority": "LobbyScene"
+    },
+    {
+      "event": "close-settings",
+      "from": "settings-open",
+      "to": "settings-closed",
+      "authority": "UISettingsPanel"
+    }
+  ],
+  "architecture": {
+    "artifacts": [
+      {
+        "id": "home-view",
+        "role": "view",
+        "responsibility": "绘制大厅暖色背景、内容卡片和入口视觉，不改变开始与弹窗事件。"
+      },
+      {
+        "id": "settings-view",
+        "role": "view",
+        "responsibility": "绘制设置弹窗暖色视觉并继续转发现有开关和外部动作。"
+      },
+      {
+        "id": "system-prefab-builder",
+        "role": "config",
+        "responsibility": "可重复生成两套 Prefab、绑定下载素材并校验节点组件兼容性。"
+      }
+    ]
+  },
+  "interfaces": [
+    {
+      "id": "remote-api",
+      "operation": "not-needed",
+      "required": false,
+      "implementation": "not-needed",
+      "sources": [
+        "user-style-requirement"
+      ]
+    }
+  ],
+  "ui": {
+    "screens": [
+      {
+        "id": "home-screen",
+        "kind": "full-screen",
+        "prefab": "UIHomePanel"
+      },
+      {
+        "id": "settings-screen",
+        "kind": "modal-popup",
+        "prefab": "UISettingsPanel"
+      }
+    ],
+    "lists": [],
+    "bindings": [
+      {
+        "name": "backgroundGraphics",
+        "component": "cc.Graphics",
+        "owner": "home-screen",
+        "classification": "fixed",
+        "source": "warm-healing-palette",
+        "required": true,
+        "reason": "大厅必须覆盖原有冷色场景背景。"
+      },
+      {
+        "name": "startButton",
+        "component": "cc.Button",
+        "owner": "home-screen",
+        "classification": "interactive",
+        "source": "existing-lobby-settings",
+        "required": true,
+        "reason": "换肤后必须继续进入当前目标关卡。"
+      },
+      {
+        "name": "panelGraphics",
+        "component": "cc.Graphics",
+        "owner": "settings-screen",
+        "classification": "fixed",
+        "source": "warm-healing-palette",
+        "required": true,
+        "reason": "设置弹窗统一暖色卡片外观。"
+      },
+      {
+        "name": "soundButton",
+        "component": "cc.Button",
+        "owner": "settings-screen",
+        "classification": "interactive",
+        "source": "puzzle.settings.soundEnabled",
+        "required": true,
+        "reason": "视觉修改不得破坏声音开关。"
+      },
+      {
+        "name": "vibrationButton",
+        "component": "cc.Button",
+        "owner": "settings-screen",
+        "classification": "interactive",
+        "source": "puzzle.settings.vibrationEnabled",
+        "required": true,
+        "reason": "视觉修改不得破坏震动开关。"
+      }
+    ],
+    "actions": [
+      {
+        "id": "start-game",
+        "owner": "home-screen",
+        "trigger": "startButton click",
+        "handler": "UIHomePanel.onClickStart"
+      },
+      {
+        "id": "open-settings",
+        "owner": "home-screen",
+        "trigger": "settingsButton click",
+        "handler": "PuzzleSystemEvent.SettingsOpenRequested"
+      },
+      {
+        "id": "toggle-settings",
+        "owner": "settings-screen",
+        "trigger": "soundButton/vibrationButton click",
+        "handler": "PuzzleSettingsManager"
+      }
+    ],
+    "visualStates": [
+      {
+        "id": "warm-lobby-default",
+        "owner": "home-screen",
+        "description": "奶油色背景、暖白中央卡片、杏黄主按钮、暖色顶部入口与鼠尾草绿装饰。"
+      },
+      {
+        "id": "warm-settings-enabled",
+        "owner": "settings-screen",
+        "description": "暖白弹窗、浅杏设置卡片与蜂蜜金开启轨道。"
+      },
+      {
+        "id": "warm-settings-disabled",
+        "owner": "settings-screen",
+        "description": "关闭状态使用低饱和暖灰棕轨道，仍与开启状态清晰区分。"
+      }
+    ]
+  },
+  "acceptance": {
+    "cases": [
+      {
+        "id": "home-warm-style",
+        "title": "大厅在 640×1136 下完整显示暖色背景、标题、进度、头像、设置和开始按钮",
+        "status": "passed",
+        "sources": [
+          "user-style-requirement"
+        ]
+      },
+      {
+        "id": "settings-warm-style",
+        "title": "设置弹窗完整显示声音、震动、四个扩展入口和版本号",
+        "status": "passed",
+        "sources": [
+          "user-style-requirement",
+          "existing-lobby-settings"
+        ]
+      },
+      {
+        "id": "behavior-regression",
+        "title": "大厅开始、设置开关、外部入口反馈和关闭行为保持不变",
+        "status": "passed",
+        "sources": [
+          "existing-lobby-settings"
+        ]
+      }
+    ],
+    "gates": [
+      {
+        "id": "contract",
+        "status": "passed"
+      },
+      {
+        "id": "static",
+        "status": "passed"
+      },
+      {
+        "id": "creator-import",
+        "status": "passed"
+      },
+      {
+        "id": "visual",
+        "status": "passed"
+      },
+      {
+        "id": "functional-smoke",
+        "status": "passed"
+      },
+      {
+        "id": "functional",
+        "status": "passed"
+      },
+      {
+        "id": "api",
+        "status": "passed"
+      },
+      {
+        "id": "lifecycle",
+        "status": "passed"
+      },
+      {
+        "id": "regression",
+        "status": "passed"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "gate": "contract",
+      "type": "command",
+      "result": "用户范围、项目规则、现有绑定和 CC0 素材来源已归一化。",
+      "reference": "module-contract.json"
+    },
+    {
+      "gate": "api",
+      "type": "manual",
+      "result": "本次仅做本地视觉换肤，不需要新增远程接口。",
+      "reference": "用户 2026-07-30 需求"
+    },
+    {
+      "gate": "static",
+      "type": "command",
+      "result": "TypeScript、组件契约、Cocos 资源与工作流静态检查通过。",
+      "reference": "npm run verify:changed"
+    },
+    {
+      "gate": "creator-import",
+      "type": "creator",
+      "result": "复用当前 Creator 完成脚本、Prefab 和纹理导入，增量日志未发现导入错误。",
+      "reference": "Creator 3.8.4 本地会话，2026-07-30"
+    },
+    {
+      "gate": "visual",
+      "type": "visual",
+      "result": "在设计分辨率 640×1136 下，大厅与设置弹窗无越界、遮挡或文本截断。",
+      "reference": "http://localhost:7456/"
+    },
+    {
+      "gate": "functional-smoke",
+      "type": "manual",
+      "result": "设置入口、声音开关关闭与恢复、帮助中心预留反馈、关闭与再次打开均正常；浏览器 Console error/warn 为 0。",
+      "reference": "本地 Creator 预览"
+    },
+    {
+      "gate": "functional",
+      "type": "command",
+      "result": "拼图系统规则与现有设置行为自动化检查通过。",
+      "reference": "npm run verify:puzzle-systems"
+    },
+    {
+      "gate": "lifecycle",
+      "type": "manual",
+      "result": "设置弹窗关闭后可再次打开，再次关闭后大厅交互恢复，未出现重复弹窗。",
+      "reference": "本地 Creator 预览"
+    },
+    {
+      "gate": "regression",
+      "type": "command",
+      "result": "暖色大厅模块检查点全部通过。",
+      "reference": "npm run verify:module -- warm-lobby-ui"
+    }
+  ],
+  "deliverables": [
+    {
+      "kind": "source",
+      "path": "assets/app/ui/home/UIHomePanel.ts",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "source",
+      "path": "assets/app/ui/popup/UISettingsPanel.ts",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "prefab",
+      "path": "assets/resources/prefabs/home/UIHomePanel.prefab",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "prefab",
+      "path": "assets/resources/prefabs/popup/UISettingsPanel.prefab",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "asset",
+      "path": "assets/resources/textures/common/kenney-ui/warm_primary_button.png",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "asset",
+      "path": "assets/resources/textures/common/kenney-ui/play_icon.png",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "tool",
+      "path": "tools/create-system-prefabs.mjs",
+      "requiredFor": [
+        "runnable",
+        "test"
+      ]
+    },
+    {
+      "kind": "document",
+      "path": "docs/THIRD_PARTY_ASSETS.md",
+      "requiredFor": [
+        "test"
+      ]
+    }
+  ]
+}

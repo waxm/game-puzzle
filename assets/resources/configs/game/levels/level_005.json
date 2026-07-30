@@ -6,7 +6,7 @@
   "columns": 9,
   "boardWidth": 448,
   "boardHeight": 448,
-  "timeLimitSeconds": null,
+  "timeLimitSeconds": 300,
   "pieceOrder": [
     18,
     3,

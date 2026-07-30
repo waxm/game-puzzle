@@ -40,6 +40,12 @@ const preparedMetas = new Map();
 /** Creator 实际注册的业务脚本类型。 */
 const scriptTypes = {};
 
+/** 已由 Creator 导入的首页和通用 UI SpriteFrame。 */
+const spriteFrames = {};
+
+/** 命令行指定的生成目标；未指定时保持原有全量生成行为。 */
+const selectedTargets = new Set(process.argv.slice(2));
+
 /** 生成大厅入口、设置、玩家资料和头像项 Prefab。 */
 function main() {
   ensureDirectory(directories.home);
@@ -68,62 +74,235 @@ function main() {
       "assets/app/ui/common/PuzzleAvatarRenderer.ts.meta",
     ),
   });
+  Object.assign(spriteFrames, {
+    warmPrimaryButton: resolveSpriteFrameUuid(
+      "assets/resources/textures/common/kenney-ui/warm_primary_button.png.meta",
+    ),
+    playIcon: resolveSpriteFrameUuid(
+      "assets/resources/textures/common/kenney-ui/play_icon.png.meta",
+    ),
+    albumPanelOne: resolveSpriteFrameUuid(
+      "assets/resources/textures/game/levels/level_001/level_001_source.png.meta",
+    ),
+    albumPanelTwo: resolveSpriteFrameUuid(
+      "assets/resources/textures/game/levels/level_002/level_002_source.png.meta",
+    ),
+    albumPanelThree: resolveSpriteFrameUuid(
+      "assets/resources/textures/game/levels/level_003/level_003_source.png.meta",
+    ),
+    albumPanelFour: resolveSpriteFrameUuid(
+      "assets/resources/textures/game/levels/level_004/level_004_source.png.meta",
+    ),
+    albumPanelFive: resolveSpriteFrameUuid(
+      "assets/resources/textures/game/levels/level_005/level_005_source.png.meta",
+    ),
+  });
 
-  preparePrefabMeta("UIHomePanel", directories.home);
-  preparePrefabMeta("UISettingsPanel", directories.popup);
-  preparePrefabMeta("UIProfilePanel", directories.popup);
-  preparePrefabMeta("PuzzleAvatarItem", directories.item);
-  writePrefab("UIHomePanel", directories.home, createHomePrefab());
-  writePrefab(
-    "UISettingsPanel",
-    directories.popup,
-    createSettingsPrefab(),
+  if (shouldGenerate("home")) {
+    preparePrefabMeta("UIHomePanel", directories.home);
+    writePrefab("UIHomePanel", directories.home, createHomePrefab());
+  }
+  if (shouldGenerate("settings")) {
+    preparePrefabMeta("UISettingsPanel", directories.popup);
+    writePrefab(
+      "UISettingsPanel",
+      directories.popup,
+      createSettingsPrefab(),
+    );
+  }
+  if (shouldGenerate("profile")) {
+    preparePrefabMeta("UIProfilePanel", directories.popup);
+    writePrefab("UIProfilePanel", directories.popup, createProfilePrefab());
+  }
+  if (shouldGenerate("avatar-item")) {
+    preparePrefabMeta("PuzzleAvatarItem", directories.item);
+    writePrefab("PuzzleAvatarItem", directories.item, createAvatarItemPrefab());
+  }
+  console.log(
+    `大厅系统 Prefab 已生成并完成结构校验：${[
+      "home",
+      "settings",
+      "profile",
+      "avatar-item",
+    ]
+      .filter(shouldGenerate)
+      .join("、")}`,
   );
-  writePrefab("UIProfilePanel", directories.popup, createProfilePrefab());
-  writePrefab("PuzzleAvatarItem", directories.item, createAvatarItemPrefab());
-  console.log("大厅系统 Prefab 已生成并完成结构校验。");
 }
 
-/** 创建包含头像和设置入口的首页 Prefab。 */
+/** 判断本次是否需要生成指定 Prefab 目标。 */
+function shouldGenerate(target) {
+  return selectedTargets.size === 0 || selectedTargets.has(target);
+}
+
+/** 创建包含第一卷画册、头像和设置入口的首页 Prefab。 */
 function createHomePrefab() {
   const objects = [createPrefabAsset("UIHomePanel")];
   const rootId = addNode(objects, "UIHomePanel", null, 0, 0, 640, 1136);
   addWidget(objects, rootId);
+  const backgroundGraphicsId = addGraphics(objects, rootId);
+  const heroCardId = addNode(
+    objects,
+    "HeroCard",
+    rootId,
+    0,
+    -25,
+    564,
+    660,
+  );
+  const heroCardGraphicsId = addGraphics(objects, heroCardId);
   const titleLabelId = addTextNode(
     objects,
     rootId,
     "TitleLabel",
-    "光影拼图",
+    "千年拾光",
     0,
-    160,
+    405,
     480,
-    80,
-    52,
-    color(255, 255, 255),
+    72,
+    50,
+    color(88, 61, 42),
   );
-  const start = addTextButton(
+  addTextNode(
     objects,
     rootId,
-    "StartButton",
-    "开始第 1 关",
+    "SubtitleLabel",
+    "每一片，都是一段时光",
     0,
-    40,
-    300,
-    76,
-    color(120, 205, 255),
-    false,
+    345,
+    470,
+    48,
+    24,
+    color(128, 98, 72),
+  );
+  const albumEraLabelId = addTextNode(
+    objects,
+    heroCardId,
+    "AlbumEraLabel",
+    "第一卷 · 宋韵人间",
+    0,
+    270,
+    420,
+    44,
+    23,
+    color(164, 101, 52),
+  );
+  const albumTitleLabelId = addTextNode(
+    objects,
+    heroCardId,
+    "AlbumTitleLabel",
+    "《汴京一日》",
+    0,
+    220,
+    450,
+    62,
+    38,
+    color(72, 57, 45),
+  );
+  const albumSubtitleLabelId = addTextNode(
+    objects,
+    heroCardId,
+    "AlbumSubtitleLabel",
+    "循着一日光影，拼回汴京人间",
+    0,
+    172,
+    470,
+    42,
+    20,
+    color(126, 105, 80),
+  );
+
+  const albumPanelNames = [
+    "城门晨曦",
+    "街巷早市",
+    "茶坊雅集",
+    "河畔舟行",
+    "上元灯夜",
+  ];
+  const albumPanelSpriteFrames = [
+    spriteFrames.albumPanelOne,
+    spriteFrames.albumPanelTwo,
+    spriteFrames.albumPanelThree,
+    spriteFrames.albumPanelFour,
+    spriteFrames.albumPanelFive,
+  ];
+  const albumPanelSpriteIds = albumPanelSpriteFrames.map(
+    (spriteFrameUuid, index) => {
+      const x = -200 + index * 100;
+      const panel = addSpriteNode(
+        objects,
+        heroCardId,
+        `AlbumPanel${index + 1}`,
+        x,
+        70,
+        88,
+        88,
+        spriteFrameUuid,
+      );
+      addTextNode(
+        objects,
+        heroCardId,
+        `AlbumPanel${index + 1}Label`,
+        albumPanelNames[index],
+        x,
+        5,
+        94,
+        34,
+        17,
+        color(104, 82, 60),
+      );
+      return panel.spriteId;
+    },
+  );
+  const albumProgressNodeId = addNode(
+    objects,
+    "AlbumProgressOverlay",
+    heroCardId,
+    0,
+    70,
+    500,
+    100,
+  );
+  const albumProgressGraphicsId = addGraphics(
+    objects,
+    albumProgressNodeId,
   );
   const tipLabelId = addTextNode(
     objects,
-    rootId,
+    heroCardId,
     "TipLabel",
-    "完成拼图，点亮光影",
+    "已点亮 0 / 5 · 再通 5 关展开长卷",
     0,
-    -50,
-    560,
+    -65,
+    480,
     50,
-    24,
-    color(195, 210, 230),
+    21,
+    color(91, 126, 99),
+  );
+  const start = addSpriteButton(
+    objects,
+    heroCardId,
+    "StartButton",
+    "继续修复 · 第 1 关",
+    0,
+    -180,
+    360,
+    108,
+    color(91, 62, 36),
+    spriteFrames.warmPrimaryButton,
+    spriteFrames.playIcon,
+  );
+  addTextNode(
+    objects,
+    heroCardId,
+    "NextAlbumLabel",
+    "下一卷 · 静候开启",
+    0,
+    -270,
+    420,
+    40,
+    19,
+    color(150, 127, 99),
   );
 
   const profileNodeId = addNode(
@@ -135,6 +314,7 @@ function createHomePrefab() {
     210,
     90,
   );
+  const profileButtonGraphicsId = addGraphics(objects, profileNodeId);
   const profileButtonId = addButton(objects, profileNodeId);
   const avatar = addAvatarRenderer(
     objects,
@@ -155,7 +335,7 @@ function createHomePrefab() {
     130,
     46,
     23,
-    color(255, 255, 255),
+    color(103, 75, 49),
   );
 
   const settings = addTextButton(
@@ -167,7 +347,7 @@ function createHomePrefab() {
     460,
     82,
     82,
-    color(255, 255, 255),
+    color(255, 245, 220),
     true,
   );
   const scriptId = addBusinessScript(
@@ -175,11 +355,23 @@ function createHomePrefab() {
     rootId,
     scriptTypes.UIHomePanel,
     {
+      backgroundGraphics: ref(backgroundGraphicsId),
+      heroCardGraphics: ref(heroCardGraphicsId),
+      albumProgressGraphics: ref(albumProgressGraphicsId),
       titleLabel: ref(titleLabelId),
+      albumEraLabel: ref(albumEraLabelId),
+      albumTitleLabel: ref(albumTitleLabelId),
+      albumSubtitleLabel: ref(albumSubtitleLabelId),
+      albumPanelOneSprite: ref(albumPanelSpriteIds[0]),
+      albumPanelTwoSprite: ref(albumPanelSpriteIds[1]),
+      albumPanelThreeSprite: ref(albumPanelSpriteIds[2]),
+      albumPanelFourSprite: ref(albumPanelSpriteIds[3]),
+      albumPanelFiveSprite: ref(albumPanelSpriteIds[4]),
       startButton: ref(start.buttonId),
       startButtonLabel: ref(start.labelId),
       tipLabel: ref(tipLabelId),
       profileButton: ref(profileButtonId),
+      profileButtonGraphics: ref(profileButtonGraphicsId),
       profileAvatarRenderer: ref(avatar.rendererId),
       profileNameLabel: ref(profileNameLabelId),
       settingsButton: ref(settings.buttonId),
@@ -187,11 +379,23 @@ function createHomePrefab() {
     },
   );
   validateBindings(objects, scriptId, {
+    backgroundGraphics: "cc.Graphics",
+    heroCardGraphics: "cc.Graphics",
+    albumProgressGraphics: "cc.Graphics",
     titleLabel: "cc.Label",
+    albumEraLabel: "cc.Label",
+    albumTitleLabel: "cc.Label",
+    albumSubtitleLabel: "cc.Label",
+    albumPanelOneSprite: "cc.Sprite",
+    albumPanelTwoSprite: "cc.Sprite",
+    albumPanelThreeSprite: "cc.Sprite",
+    albumPanelFourSprite: "cc.Sprite",
+    albumPanelFiveSprite: "cc.Sprite",
     startButton: "cc.Button",
     startButtonLabel: "cc.Label",
     tipLabel: "cc.Label",
     profileButton: "cc.Button",
+    profileButtonGraphics: "cc.Graphics",
     profileAvatarRenderer: scriptTypes.PuzzleAvatarRenderer,
     profileNameLabel: "cc.Label",
     settingsButton: "cc.Button",
@@ -219,7 +423,19 @@ function createSettingsPrefab() {
     300,
     64,
     40,
-    color(39, 48, 64),
+    color(96, 68, 45),
+  );
+  addTextNode(
+    objects,
+    panelId,
+    "SubtitleLabel",
+    "留一点安静给自己",
+    0,
+    338,
+    320,
+    42,
+    21,
+    color(153, 124, 91),
   );
   const close = addTextButton(
     objects,
@@ -230,7 +446,7 @@ function createSettingsPrefab() {
     390,
     58,
     58,
-    color(73, 83, 99),
+    color(108, 75, 45),
     true,
   );
   addTextNode(
@@ -238,12 +454,12 @@ function createSettingsPrefab() {
     panelId,
     "SoundTitle",
     "声音",
-    -155,
-    270,
+    -150,
+    246,
     150,
     54,
     30,
-    color(48, 58, 75),
+    color(101, 73, 48),
   );
   const sound = addTextButton(
     objects,
@@ -251,10 +467,10 @@ function createSettingsPrefab() {
     "SoundButton",
     "开",
     170,
-    270,
+    246,
     110,
     56,
-    color(255, 255, 255),
+    color(104, 72, 40),
     true,
   );
   addTextNode(
@@ -262,12 +478,12 @@ function createSettingsPrefab() {
     panelId,
     "VibrationTitle",
     "震动",
-    -155,
-    185,
+    -150,
+    151,
     150,
     54,
     30,
-    color(48, 58, 75),
+    color(101, 73, 48),
   );
   const vibration = addTextButton(
     objects,
@@ -275,10 +491,10 @@ function createSettingsPrefab() {
     "VibrationButton",
     "开",
     170,
-    185,
+    151,
     110,
     56,
-    color(255, 255, 255),
+    color(104, 72, 40),
     true,
   );
   addTextNode(
@@ -287,27 +503,27 @@ function createSettingsPrefab() {
     "MoreTitle",
     "更多",
     -190,
-    100,
+    72,
     100,
     45,
     24,
-    color(112, 123, 140),
+    color(159, 126, 89),
   );
-  const help = addActionRow(objects, panelId, "HelpButton", "帮助中心", 30);
-  const rating = addActionRow(objects, panelId, "RatingButton", "为游戏评分", -55);
-  const privacy = addActionRow(objects, panelId, "PrivacyButton", "隐私政策", -140);
-  const terms = addActionRow(objects, panelId, "TermsButton", "服务条款", -225);
+  const help = addActionRow(objects, panelId, "HelpButton", "帮助中心", 5);
+  const rating = addActionRow(objects, panelId, "RatingButton", "为游戏评分", -78);
+  const privacy = addActionRow(objects, panelId, "PrivacyButton", "隐私政策", -161);
+  const terms = addActionRow(objects, panelId, "TermsButton", "服务条款", -244);
   const feedbackLabelId = addTextNode(
     objects,
     panelId,
     "FeedbackLabel",
     "",
     0,
-    -325,
+    -340,
     460,
     46,
     21,
-    color(104, 116, 134),
+    color(157, 102, 72),
   );
   const versionLabelId = addTextNode(
     objects,
@@ -315,11 +531,11 @@ function createSettingsPrefab() {
     "VersionLabel",
     "版本 v1.0.0",
     0,
-    -405,
+    -408,
     360,
     40,
     20,
-    color(135, 145, 160),
+    color(160, 140, 116),
   );
   const scriptId = addBusinessScript(
     objects,
@@ -587,7 +803,7 @@ function addActionRow(objects, parentId, name, text, y) {
     y,
     440,
     68,
-    color(54, 65, 83),
+    color(105, 76, 50),
     true,
   );
 }
@@ -634,6 +850,75 @@ function addAvatarRenderer(
     },
   );
   return { nodeId, rendererId, graphicsId, symbolLabelId };
+}
+
+/** 添加使用已导入 SpriteFrame 的主操作按钮。 */
+function addSpriteButton(
+  objects,
+  parentId,
+  name,
+  text,
+  x,
+  y,
+  width,
+  height,
+  labelColor,
+  backgroundSpriteFrameUuid,
+  iconSpriteFrameUuid,
+) {
+  const nodeId = addNode(objects, name, parentId, x, y, width, height);
+  const buttonId = addButton(objects, nodeId);
+  addSpriteNode(
+    objects,
+    nodeId,
+    `${name}Background`,
+    0,
+    0,
+    width,
+    height,
+    backgroundSpriteFrameUuid,
+  );
+  addSpriteNode(
+    objects,
+    nodeId,
+    `${name}Icon`,
+    -112,
+    0,
+    34,
+    38,
+    iconSpriteFrameUuid,
+    color(91, 62, 36),
+  );
+  const labelId = addTextNode(
+    objects,
+    nodeId,
+    `${name}Label`,
+    text,
+    18,
+    2,
+    width - 82,
+    height - 24,
+    30,
+    labelColor,
+  );
+  return { nodeId, buttonId, labelId };
+}
+
+/** 添加指定 SpriteFrame 的纯展示图片节点。 */
+function addSpriteNode(
+  objects,
+  parentId,
+  name,
+  x,
+  y,
+  width,
+  height,
+  spriteFrameUuid,
+  tint = color(255, 255, 255),
+) {
+  const nodeId = addNode(objects, name, parentId, x, y, width, height);
+  const spriteId = addSprite(objects, nodeId, spriteFrameUuid, tint);
+  return { nodeId, spriteId };
 }
 
 /** 添加带 Graphics 和文字的按钮。 */
@@ -835,8 +1120,13 @@ function addGraphics(objects, nodeId) {
   return id;
 }
 
-/** 添加 EditBox 等组件需要的透明 Sprite 渲染器。 */
-function addSprite(objects, nodeId) {
+/** 添加 Sprite 渲染器；未传 SpriteFrame 时作为 EditBox 的透明宿主。 */
+function addSprite(
+  objects,
+  nodeId,
+  spriteFrameUuid = null,
+  tint = color(255, 255, 255),
+) {
   const id = addObject(objects, {
     __type__: "cc.Sprite",
     _name: "",
@@ -846,11 +1136,13 @@ function addSprite(objects, nodeId) {
     _customMaterial: null,
     _srcBlendFactor: 2,
     _dstBlendFactor: 4,
-    _color: color(255, 255, 255),
-    _spriteFrame: null,
-    _type: 1,
+    _color: tint,
+    _spriteFrame: spriteFrameUuid
+      ? assetRef(spriteFrameUuid, "cc.SpriteFrame")
+      : null,
+    _type: 0,
     _fillType: 0,
-    _sizeMode: 1,
+    _sizeMode: spriteFrameUuid ? 0 : 1,
     _fillCenter: { __type__: "cc.Vec2", x: 0, y: 0 },
     _fillStart: 0,
     _fillRange: 0,
@@ -957,6 +1249,22 @@ function resolveCreatorScriptType(className, relativeMetaPath) {
     );
   }
   return expected;
+}
+
+/** 从 Creator 生成的图片 meta 中取得唯一 SpriteFrame UUID。 */
+function resolveSpriteFrameUuid(relativeMetaPath) {
+  const metaPath = path.join(projectRoot, relativeMetaPath);
+  const meta = readJson(metaPath, "图片 meta");
+  const spriteFramesInMeta = Object.values(meta.subMetas ?? {}).filter(
+    (subMeta) => subMeta?.importer === "sprite-frame",
+  );
+  if (
+    spriteFramesInMeta.length !== 1 ||
+    typeof spriteFramesInMeta[0].uuid !== "string"
+  ) {
+    throw new Error(`${relativeMetaPath} 必须包含唯一 SpriteFrame 子资源。`);
+  }
+  return spriteFramesInMeta[0].uuid;
 }
 
 /** 扫描 Creator 实际编译产物中的指定 ccclass。 */
@@ -1176,6 +1484,14 @@ function compressScriptUuid(uuid) {
 /** 创建内部对象引用。 */
 function ref(id) {
   return { __id__: id };
+}
+
+/** 创建外部资源引用并声明 Creator 期望类型。 */
+function assetRef(uuid, expectedType) {
+  return {
+    __uuid__: uuid,
+    __expectedType__: expectedType,
+  };
 }
 
 /** 创建三维向量。 */

@@ -86,7 +86,7 @@ function countCorrectAdjacentEdges(rows, columns, pieceIdsByCell) {
   return edgeCount;
 }
 
-// 第 5 关必须保持本次需求指定的 9×9、无限时间和无初始连接状态。
+// 第 5 关必须保持本次需求指定的 9×9、300 秒和无初始连接状态。
 {
   const level5 = JSON.parse(
     fs.readFileSync(
@@ -101,7 +101,7 @@ function countCorrectAdjacentEdges(rows, columns, pieceIdsByCell) {
   assert.equal(level5.level, 5, "第 5 关配置编号必须为 5。");
   assert.equal(level5.rows, 9, "第 5 关行数必须为 9。");
   assert.equal(level5.columns, 9, "第 5 关列数必须为 9。");
-  assert.equal(level5.timeLimitSeconds, null, "第 5 关必须为无限时间。");
+  assert.equal(level5.timeLimitSeconds, 300, "第 5 关限时必须为 300 秒。");
   assert.deepEqual(
     [...level5.pieceOrder].sort((first, second) => first - second),
     Array.from({ length: 81 }, (_value, index) => index),

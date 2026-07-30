@@ -167,11 +167,20 @@ export const cocosAssetManifest = [
         sourcePath: "assets/app/ui/home/UIHomePanel.ts",
         hostNodeName: "UIHomePanel",
         objectBindings: {
+          backgroundGraphics: {
+            type: "cc.Graphics",
+            nodeName: "UIHomePanel",
+          },
+          heroCardGraphics: { type: "cc.Graphics", nodeName: "HeroCard" },
           titleLabel: { type: "cc.Label", nodeName: "TitleLabel" },
           startButton: { type: "cc.Button", nodeName: "StartButton" },
           startButtonLabel: { type: "cc.Label", nodeName: "StartButtonLabel" },
           tipLabel: { type: "cc.Label", nodeName: "TipLabel" },
           profileButton: { type: "cc.Button", nodeName: "ProfileButton" },
+          profileButtonGraphics: {
+            type: "cc.Graphics",
+            nodeName: "ProfileButton",
+          },
           profileAvatarRenderer: {
             scriptClassName: "PuzzleAvatarRenderer",
             scriptSourcePath:

@@ -51,6 +51,19 @@
       "verify:puzzle-systems",
       "validate:cocos",
       "workflow:verify"
+    ],
+    "warm-lobby-ui": [
+      "typecheck",
+      "verify:puzzle-systems",
+      "validate:cocos",
+      "workflow:verify"
+    ],
+    "time-album-lobby": [
+      "typecheck",
+      "verify:puzzle-album",
+      "verify:puzzle-progress",
+      "validate:cocos",
+      "workflow:verify"
     ]
   }
 }
