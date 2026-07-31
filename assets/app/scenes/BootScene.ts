@@ -1,4 +1,4 @@
-import { _decorator, ResolutionPolicy, view } from "cc";
+import { _decorator } from "cc";
 import { App } from "../core/app/App";
 import { PUZZLE_APP_INIT_OPTIONS } from "../game/config/PuzzleProjectConfig";
 import { SceneBase } from "../core/scene/SceneBase";
@@ -10,7 +10,6 @@ import {
     UILoadErrorPanelOpenParams,
 } from "../ui/common/UILoadErrorPanel";
 import {
-    PuzzleDisplayConfig,
     PuzzleSceneName,
     PuzzleUIConfig,
     PuzzleUIName,
@@ -37,13 +36,6 @@ export class BootScene extends SceneBase {
 
     /** 初始化框架、注册启动恢复界面并进入大厅。 */
     protected onEnter(): void {
-        // Creator 3.8.4 的 Web 构建器会把初始策略写回 FIXED_WIDTH；
-        // Boot 必须在任何业务 UI 打开前恢复 SHOW_ALL，确保宽屏 iframe 不裁切上下内容。
-        view.setDesignResolutionSize(
-            PuzzleDisplayConfig.Width,
-            PuzzleDisplayConfig.Height,
-            ResolutionPolicy.SHOW_ALL,
-        );
         super.onEnter();
         App.init(PUZZLE_APP_INIT_OPTIONS);
         PuzzleSettingsManager.initialize();

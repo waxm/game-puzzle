@@ -1,3 +1,4 @@
+import { ResolutionPolicy, view } from "cc";
 import { EventCenter } from "../event/EventCenter";
 import { AudioManager } from "../audio/AudioManager";
 import { PoolManager } from "../pool/PoolManager";
@@ -8,6 +9,36 @@ import { TimerManager } from "../timer/TimerManager";
 import { UIManager } from "../ui/UIManager";
 import { Logger } from "../utils/Logger";
 
+/** 框架支持的设计分辨率适配策略。 */
+export enum AppResolutionPolicy {
+    /** 完整显示设计区域，设备比例不一致时允许留边。 */
+    ShowAll = "show-all",
+
+    /** 固定设计宽度，按设备比例扩展或裁切内部高度。 */
+    FixedWidth = "fixed-width",
+
+    /** 固定设计高度，按设备比例扩展或裁切内部宽度。 */
+    FixedHeight = "fixed-height",
+
+    /** 拉伸设计区域以完全填满屏幕。 */
+    ExactFit = "exact-fit",
+
+    /** 保持比例并填满屏幕，允许裁切超出区域。 */
+    NoBorder = "no-border",
+}
+
+/** 游戏启动时使用的设计分辨率配置。 */
+export interface AppDisplayOptions {
+    /** 设计分辨率宽度。 */
+    width?: number;
+
+    /** 设计分辨率高度。 */
+    height?: number;
+
+    /** 设计区域适配策略，默认完整显示。 */
+    policy?: AppResolutionPolicy;
+}
+
 /** 框架初始化时由独立游戏提供的项目配置。 */
 export interface AppInitOptions {
     /** 当前游戏独立的存档命名空间，避免同域名下多个游戏共享数据。 */
@@ -15,6 +46,9 @@ export interface AppInitOptions {
 
     /** 当前游戏独立的日志前缀，便于区分不同项目的运行输出。 */
     logPrefix?: string;
+
+    /** 当前游戏的设计分辨率和屏幕适配策略。 */
+    display?: Readonly<AppDisplayOptions>;
 }
 
 /**
@@ -25,6 +59,12 @@ export interface AppInitOptions {
 export class App {
     /** 当前框架版本号，后续框架升级时同步维护。 */
     public static readonly version = "0.0.1";
+
+    /** 框架默认设计宽度。 */
+    private static readonly _defaultDesignWidth = 640;
+
+    /** 框架默认设计高度。 */
+    private static readonly _defaultDesignHeight = 1136;
 
     /** 框架是否已经初始化。 */
     private static _inited = false;
@@ -48,6 +88,7 @@ export class App {
             return;
         }
 
+        this.applyDisplayOptions(options.display);
         if (options.logPrefix) {
             Logger.setPrefix(options.logPrefix);
         }
@@ -68,6 +109,47 @@ export class App {
 
         this._inited = true;
         Logger.info("框架初始化完成。");
+    }
+
+    /** 在任何业务 UI 初始化前统一应用设计分辨率和适配策略。 */
+    private static applyDisplayOptions(options: Readonly<AppDisplayOptions> = {}): void {
+        const width = options.width ?? this._defaultDesignWidth;
+        const height = options.height ?? this._defaultDesignHeight;
+        if (!Number.isFinite(width) || width <= 0) {
+            throw new RangeError(`设计分辨率宽度必须是正数：${String(width)}`);
+        }
+        if (!Number.isFinite(height) || height <= 0) {
+            throw new RangeError(`设计分辨率高度必须是正数：${String(height)}`);
+        }
+
+        const policy = options.policy ?? AppResolutionPolicy.ShowAll;
+        view.setDesignResolutionSize(
+            width,
+            height,
+            this.resolveResolutionPolicy(policy),
+        );
+    }
+
+    /** 把框架公开策略转换为 Creator 的运行时策略常量。 */
+    private static resolveResolutionPolicy(policy: AppResolutionPolicy): number {
+        switch (policy) {
+            case AppResolutionPolicy.ShowAll:
+                return ResolutionPolicy.SHOW_ALL;
+            case AppResolutionPolicy.FixedWidth:
+                return ResolutionPolicy.FIXED_WIDTH;
+            case AppResolutionPolicy.FixedHeight:
+                return ResolutionPolicy.FIXED_HEIGHT;
+            case AppResolutionPolicy.ExactFit:
+                return ResolutionPolicy.EXACT_FIT;
+            case AppResolutionPolicy.NoBorder:
+                return ResolutionPolicy.NO_BORDER;
+            default: {
+                const unsupportedPolicy: never = policy;
+                throw new Error(
+                    `不支持的设计分辨率适配策略：${String(unsupportedPolicy)}`,
+                );
+            }
+        }
     }
 
     /**

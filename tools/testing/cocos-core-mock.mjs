@@ -1009,6 +1009,31 @@ export const macro = {
   REPEAT_FOREVER: -1,
 };
 
+/** Creator 分辨率策略常量模拟。 */
+export const ResolutionPolicy = {
+  EXACT_FIT: 0,
+  NO_BORDER: 1,
+  SHOW_ALL: 2,
+  FIXED_HEIGHT: 3,
+  FIXED_WIDTH: 4,
+};
+
+/** 测试专用设计分辨率接口模拟。 */
+export const view = {
+  /** 已应用的设计分辨率记录。 */
+  designResolutionCalls: [],
+
+  /** 记录框架提交的设计分辨率和适配策略。 */
+  setDesignResolutionSize(width, height, policy) {
+    this.designResolutionCalls.push({ width, height, policy });
+  },
+
+  /** 清空设计分辨率调用记录。 */
+  reset() {
+    this.designResolutionCalls.length = 0;
+  },
+};
+
 /** 全局 resources 加载器模拟。 */
 export const resources = new MockLoader();
 
@@ -1054,6 +1079,7 @@ export const __mock = {
     assetManager.reset();
     director.reset();
     game.reset();
+    view.reset();
     Tween.reset();
     sys.localStorage.clear();
   },

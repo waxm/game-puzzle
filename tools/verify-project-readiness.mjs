@@ -166,15 +166,24 @@ try {
   ].map((relativePath) =>
     fs.readFileSync(path.join(projectRoot, relativePath), "utf8"),
   );
-  assert.match(
-    sceneSources[0],
-    /ResolutionPolicy\.SHOW_ALL/,
-    "BootScene 必须覆盖 Creator Web 构建器写入的 FIXED_WIDTH 初始策略。",
+  const appSource = fs.readFileSync(
+    path.join(projectRoot, "assets/app/core/app/App.ts"),
+    "utf8",
   );
   assert.match(
-    sceneSources[0],
+    appSource,
+    /AppResolutionPolicy\.ShowAll/,
+    "App 必须把 SHOW_ALL 作为默认运行时分辨率策略。",
+  );
+  assert.match(
+    appSource,
     /view\.setDesignResolutionSize/,
-    "BootScene 必须在业务 UI 打开前应用运行时分辨率策略。",
+    "App 必须在核心服务和业务 UI 初始化前应用运行时分辨率策略。",
+  );
+  assert.doesNotMatch(
+    sceneSources[0],
+    /view\.setDesignResolutionSize|ResolutionPolicy/,
+    "BootScene 不得绕过 App 重复设置运行时分辨率策略。",
   );
   const centralizedRuntimeValues = [
     ...sceneNames,

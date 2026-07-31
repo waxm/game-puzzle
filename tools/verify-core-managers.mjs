@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { compileCoreForTest } from "./testing/compile-core-for-test.mjs";
@@ -21,8 +22,12 @@ const compiledCore = compileCoreForTest(projectRoot, cocosMockPath);
 const cocos = await import(pathToFileURL(cocosMockPath).href);
 
 /** 动态载入全部核心模块。 */
-const [{ App }, { AudioManager }, { StorageManager }, { EventCenter }] =
-  await Promise.all([
+const [
+  { App, AppResolutionPolicy },
+  { AudioManager },
+  { StorageManager },
+  { EventCenter },
+] = await Promise.all([
     compiledCore.importModule("app/App.ts"),
     compiledCore.importModule("audio/AudioManager.ts"),
     compiledCore.importModule("data/StorageManager.ts"),
@@ -53,6 +58,20 @@ const testCases = [];
 /** 注册一个顺序执行的核心测试。 */
 function test(name, callback) {
   testCases.push({ name, callback });
+}
+
+/** 递归收集目录中的 TypeScript 源码，供跨模块静态约束检查。 */
+function collectTypeScriptSources(directoryPath) {
+  const result = [];
+  for (const entry of fs.readdirSync(directoryPath, { withFileTypes: true })) {
+    const entryPath = path.join(directoryPath, entry.name);
+    if (entry.isDirectory()) {
+      result.push(...collectTypeScriptSources(entryPath));
+    } else if (entry.isFile() && entry.name.endsWith(".ts")) {
+      result.push(entryPath);
+    }
+  }
+  return result;
 }
 
 /** 推进 Promise continuation，让异步管理器真正进入底层模拟加载队列。 */
@@ -1040,6 +1059,13 @@ test("App 初始化幂等并按顺序重置全局状态", async () => {
   });
   App.init();
   assert.equal(App.inited, true);
+  assert.deepEqual(cocos.view.designResolutionCalls, [
+    {
+      width: 640,
+      height: 1136,
+      policy: cocos.ResolutionPolicy.SHOW_ALL,
+    },
+  ]);
   assert.equal(App.get("StorageManager"), StorageManager);
   assert.equal(App.get("AudioManager"), AudioManager);
   assert.equal(App.get("UIManager"), UIManager);
@@ -1079,6 +1105,59 @@ test("App 初始化幂等并按顺序重置全局状态", async () => {
   assert.equal(cocos.director.getPersistRootNodes().length, 0);
   assert.equal(cocos.game.listenerCount(cocos.Game.EVENT_HIDE), 0);
   assert.equal(cocos.game.listenerCount(cocos.Game.EVENT_SHOW), 0);
+});
+
+test("App 支持显式覆盖设计分辨率并拒绝非法配置", () => {
+  cocos.director.setSceneName("Boot");
+  App.init({
+    display: {
+      width: 750,
+      height: 1334,
+      policy: AppResolutionPolicy.FixedHeight,
+    },
+  });
+  assert.deepEqual(cocos.view.designResolutionCalls, [
+    {
+      width: 750,
+      height: 1334,
+      policy: cocos.ResolutionPolicy.FIXED_HEIGHT,
+    },
+  ]);
+
+  App.reset();
+  cocos.view.reset();
+  assert.throws(
+    () =>
+      App.init({
+        display: {
+          width: 0,
+        },
+      }),
+    /设计分辨率宽度必须是正数/,
+  );
+  assert.equal(App.inited, false);
+  assert.deepEqual(cocos.view.designResolutionCalls, []);
+});
+
+test("设计分辨率只能通过 App 统一设置", () => {
+  const appSourcePath = path.join(
+    projectRoot,
+    "assets/app/core/app/App.ts",
+  );
+  const bypassFiles = collectTypeScriptSources(
+    path.join(projectRoot, "assets/app"),
+  ).filter(
+    (sourcePath) =>
+      sourcePath !== appSourcePath &&
+      /view\s*\.\s*setDesignResolutionSize\s*\(/.test(
+        fs.readFileSync(sourcePath, "utf8"),
+      ),
+  );
+  assert.deepEqual(
+    bypassFiles.map((sourcePath) => path.relative(projectRoot, sourcePath)),
+    [],
+    "业务源码不得绕过 App 直接设置设计分辨率。",
+  );
 });
 
 /** 顺序执行全部用例，失败时保留具名上下文并始终清理临时文件。 */
