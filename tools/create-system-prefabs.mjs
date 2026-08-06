@@ -48,6 +48,15 @@ const selectedTargets = new Set(process.argv.slice(2));
 
 /** 生成大厅入口、设置、玩家资料和头像项 Prefab。 */
 function main() {
+  if (
+    selectedTargets.size === 1 &&
+    selectedTargets.has("home-name-layout")
+  ) {
+    fixHomeProfileNameLayout();
+    console.log("大厅昵称位置已修正并完成结构校验：home-name-layout");
+    return;
+  }
+
   ensureDirectory(directories.home);
   ensureDirectory(directories.popup);
   ensureDirectory(directories.item);
@@ -128,6 +137,52 @@ function main() {
       .filter(shouldGenerate)
       .join("、")}`,
   );
+}
+
+/**
+ * 在保留 Creator 当前首页 Prefab 其余序列化数据的前提下修正昵称布局。
+ *
+ * 首页 Prefab 可能包含 Creator 回写的组件字段，全量重建会制造与本修复无关的差异；
+ * 因此该目标按稳定节点名定位并只更新位置、宽度和长文本溢出策略。
+ */
+function fixHomeProfileNameLayout() {
+  const prefabPath = path.join(directories.home, "UIHomePanel.prefab");
+  const objects = readJson(prefabPath, "大厅首页 Prefab");
+  const matches = objects
+    .map((object, index) => ({ object, index }))
+    .filter(({ object }) => object?.__type__ === "cc.Node")
+    .filter(({ object }) => object._name === "ProfileNameLabel")
+    .filter(({ object }) => {
+      const parent = objects[object._parent?.__id__];
+      return parent?.__type__ === "cc.Node" && parent._name === "ProfileButton";
+    });
+  if (matches.length !== 1) {
+    throw new Error(
+      `UIHomePanel 必须包含且仅包含一个 ProfileButton/ProfileNameLabel，实际 ${matches.length} 个。`,
+    );
+  }
+
+  const nameNode = matches[0].object;
+  const components = (nameNode._components ?? []).map(
+    (reference) => objects[reference.__id__],
+  );
+  const transform = components.find(
+    (component) => component?.__type__ === "cc.UITransform",
+  );
+  const label = components.find(
+    (component) => component?.__type__ === "cc.Label",
+  );
+  if (!transform || !label || !nameNode._lpos) {
+    throw new Error(
+      "UIHomePanel 的 ProfileNameLabel 缺少 Node 位置、UITransform 或 Label。",
+    );
+  }
+
+  nameNode._lpos.x = 44;
+  transform._contentSize.width = 120;
+  label._overflow = 2;
+  validateReferenceRange(objects, "UIHomePanel");
+  writeJsonIfChanged(prefabPath, objects);
 }
 
 /** 判断本次是否需要生成指定 Prefab 目标。 */
@@ -330,13 +385,14 @@ function createHomePrefab() {
     profileNodeId,
     "ProfileNameLabel",
     "拼图玩家",
-    40,
+    44,
     0,
-    130,
+    120,
     46,
     23,
     color(103, 75, 49),
   );
+  objects[profileNameLabelId]._overflow = 2;
 
   const settings = addTextButton(
     objects,
